@@ -1,0 +1,13 @@
+{
+    "error": {
+        "apiError": {
+            "errorId": "123456",
+            "errors": [
+                {
+                    "errorCode": "123456",
+                    "message": "The product could not be found"
+                }
+            ]
+        }
+    }
+}
