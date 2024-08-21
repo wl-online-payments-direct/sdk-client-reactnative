@@ -1,6 +1,6 @@
 {
   "name": "onlinepayments-sdk-client-reactnative",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Online Payments",
   "description": "A React Native package to communicate with the Online Payments platform",
   "homepage": "https://docs.direct.worldline-solutions.com/en/index",

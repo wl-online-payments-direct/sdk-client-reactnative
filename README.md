@@ -82,7 +82,7 @@ const session = new Session({
   clientApiUrl: 'https://clientapi.com', // client API URL
   assetUrl: 'https://assets.com', // asset URL
   isEnvironmentProduction: false,
-  appIdentifier: 'React Native Example Application/v1.0.0', // application identifier
+  appIdentifier: 'React Native Example Application/v1.0.1', // application identifier
   loggingEnabled: true,
 });
 ```
@@ -180,7 +180,7 @@ Session session = Session(
     'https://clientapi.com', // client API URL
     'https://assets.com', // asset URL
     isProductionEnvironment: false, // states if the environment is production, this property is used to determine the Google Pay environment
-    appIdentifier: 'React Native Example Application/v1.0.0', // application identifier
+    appIdentifier: 'React Native Example Application/v1.0.1', // application identifier
     loggingEnabled: true // states whether you would like to enable logging of requests made to the server and responses received from the server
 );
 ```
@@ -462,7 +462,7 @@ const session = new Session({
   clientApiUrl: 'https://clientapi.com', // client API URL
   assetUrl: 'https://assets.com', // asset URL
   isEnvironmentProduction: false, // states if the environment is production, this property is used to determine the Google Pay environment
-  appIdentifier: 'React Native Example Application/v1.0.0', // application identifier
+  appIdentifier: 'React Native Example Application/v1.0.1', // application identifier
   loggingEnabled: true, // States if logging is enabled
 });
 

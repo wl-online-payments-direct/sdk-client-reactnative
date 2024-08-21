@@ -48,7 +48,7 @@ export class Session {
   private isEnvironmentProduction: boolean;
   private appIdentifier: string;
   private loggingEnabled: boolean;
-  private sdkIdentifier = 'ReactNativeClientSDK/v1.0.0';
+  private sdkIdentifier = 'ReactNativeClientSDK/v1.0.1';
 
   constructor(sessionDetails: {
     clientSessionId: string;
