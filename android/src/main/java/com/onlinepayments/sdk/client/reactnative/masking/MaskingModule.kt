@@ -16,7 +16,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.onlinepayments.sdk.client.reactnative.extensions.letRequestOrReturnError
 import com.onlinepayments.sdk.client.reactnative.extensions.resolveString
 import com.onlinepayments.sdk.client.reactnative.masking.models.AccountOnFileMaskedValueRequest
@@ -24,11 +24,15 @@ import com.onlinepayments.sdk.client.reactnative.masking.models.AccountOnFileCus
 import com.onlinepayments.sdk.client.reactnative.masking.models.PaymentProductFieldMaskRequest
 import com.onlinepayments.sdk.client.reactnative.masking.models.PaymentRequestMaskedValueRequest
 import com.onlinepayments.sdk.client.reactnative.masking.models.PaymentRequestAllMaskedValuesRequest
+import com.onlinepayments.sdk.client.reactnative.adapters.ValidationRuleAdapter
+import com.onlinepayments.sdk.client.android.model.validation.AbstractValidationRule
 
 class MaskingModule(private val reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
-  private val gson = Gson()
+  private val gson = GsonBuilder()
+    .registerTypeAdapter(AbstractValidationRule::class.java, ValidationRuleAdapter())
+    .create()
 
   companion object {
     const val NAME = "OnlinePaymentsMasking"

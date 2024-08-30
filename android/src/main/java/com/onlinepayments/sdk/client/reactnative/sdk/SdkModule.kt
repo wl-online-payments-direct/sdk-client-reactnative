@@ -16,8 +16,10 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.onlinepayments.sdk.client.android.model.PaymentContext
+import com.onlinepayments.sdk.client.android.model.validation.AbstractValidationRule
+import com.onlinepayments.sdk.client.reactnative.adapters.ValidationRuleAdapter
 import com.onlinepayments.sdk.client.reactnative.extensions.letRequestOrReturnError
 import com.onlinepayments.sdk.client.reactnative.sdk.models.CurrencyConversionRequest
 import com.onlinepayments.sdk.client.reactnative.sdk.models.IinDetailsRequest
@@ -33,7 +35,9 @@ class SdkModule(private val reactContext: ReactApplicationContext) :
 
   private val bridge get() = SdkBridge.getInstance()
 
-  private val gson = Gson()
+  private val gson = GsonBuilder()
+    .registerTypeAdapter(AbstractValidationRule::class.java, ValidationRuleAdapter())
+    .create()
 
   companion object {
     const val NAME = "OnlinePaymentsSdk"
