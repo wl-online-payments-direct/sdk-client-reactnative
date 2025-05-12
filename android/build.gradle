@@ -93,6 +93,6 @@ dependencies {
   implementation "com.facebook.react:react-native:0.71.3"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
   implementation 'com.google.code.gson:gson:2.10.1'
-  implementation "com.worldline-solutions:sdk-client-android:3.2.0"
+  implementation "com.worldline-solutions:sdk-client-android:3.1.0"
 }
 
