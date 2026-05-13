@@ -1,9 +1,0 @@
-complexity:
-  TooManyFunctions:
-    thresholdInClasses: 13
-    
-style:
-  MaxLineLength:
-    excludeCommentStatements: true
-  ReturnCount:
-    max: 3

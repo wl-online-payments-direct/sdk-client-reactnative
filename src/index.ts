@@ -1,23 +1,25 @@
 /*
  * Do not remove or alter the notices in this preamble.
  *
- * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
- *
- * Copyright © 2024 Worldline and/or its affiliates.
+ * Copyright © 2026 Worldline and/or its affiliates.
  *
  * All rights reserved. License grant and user rights and obligations according to the applicable license agreement.
  *
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-// Session
-export { Session } from './session';
+import { OnlinePaymentSdk } from './facade/OnlinePaymentSdk';
+import type { SdkConfiguration, SessionData } from './domain';
 
-// Listeners
-export * from './listeners';
+export * from './domain';
+export * from './facade/OnlinePaymentSdk';
 
-// Models
-export * from './models';
-
-// Requests
-export * from './requests';
+/**
+ * Initializes the SDK with the provided data.
+ */
+export function init(
+  sessionData: SessionData,
+  configuration?: SdkConfiguration
+) {
+  return new OnlinePaymentSdk(sessionData, configuration);
+}

@@ -1,19 +1,20 @@
-import dts from "rollup-plugin-dts";
-import esbuild from "rollup-plugin-esbuild";
+import dts from 'rollup-plugin-dts';
+import esbuild from 'rollup-plugin-esbuild';
+import json from '@rollup/plugin-json';
 
 export default [
   {
     input: `src/index.ts`,
-    plugins: [esbuild()],
+    plugins: [json(), esbuild()],
     output: [
       {
         file: `dist/bundle.esm.js`,
-        format: "esm",
+        format: 'esm',
         sourcemap: true,
       },
       {
         file: `dist/bundle.cjs.js`,
-        format: "cjs",
+        format: 'cjs',
         sourcemap: true,
       },
     ],
@@ -23,7 +24,7 @@ export default [
     plugins: [dts()],
     output: {
       file: `dist/bundle.d.ts`,
-      format: "es",
+      format: 'es',
     },
   },
 ];
