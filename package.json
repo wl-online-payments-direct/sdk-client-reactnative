@@ -1,6 +1,6 @@
 {
   "name": "onlinepayments-sdk-client-reactnative",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "type": "module",
   "author": "Online Payments",
   "description": "A React Native package to communicate with the Online Payments platform",
