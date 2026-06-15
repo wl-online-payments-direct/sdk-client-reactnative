@@ -47,7 +47,7 @@ type CreatePaymentRequest = Parameters<
 export function createSdkClient(
   options: Partial<Parameters<typeof sdk.init>[0]> = {}
 ) {
-  return sdk.init({ ...options, ...defaultOptions });
+  return sdk.init({ ...defaultOptions, ...options });
 }
 
 /**
@@ -71,7 +71,7 @@ export async function getSessionFromSdk({
       paymentContext
     );
     if (!sdkResponse?.isSuccess) {
-      console.error('sdkResponse', JSON.stringify(sdkResponse, null, 2));
+      console.error('createSession failed with isSuccess=false');
       // noinspection ExceptionCaughtLocallyJS
       throw new Error('Cannot create session');
     }
@@ -101,7 +101,7 @@ export async function createPaymentFromSdk(
     paymentContext
   );
   if (!sdkResponse?.body) {
-    console.error('sdkResponse', JSON.stringify(sdkResponse, null, 2));
+    console.error('createPayment failed: no response body');
     throw new Error('Can not create payment');
   }
 
@@ -117,7 +117,7 @@ export async function createTokenRequest(
   // @ts-expect-error - the response is not typed correctly
   const result = sdkResponse?.body?.token;
   if (!result) {
-    console.error('sdkResponse', JSON.stringify(sdkResponse, null, 2));
+    console.error('createToken failed: no token in response');
 
     throw new Error('Can not create token');
   }

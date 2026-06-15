@@ -19,30 +19,37 @@ describe('getValues', () => {
     tokenRequest = new CreditCardTokenRequest();
   });
 
-  it('should return empty object when no values are set', () => {
-    expect(tokenRequest.getValues()).toEqual({});
+  it('should return all undefined values when no values are set', () => {
+    const values = tokenRequest.getValues();
+    expect(values.cardNumber).toBeUndefined();
+    expect(values.cardholderName).toBeUndefined();
+    expect(values.expiryDate).toBeUndefined();
+    expect(values.cvv).toBeUndefined();
+    expect(values.paymentProductId).toBeUndefined();
   });
 
-  it('should return all values', () => {
+  it('should return all values including paymentProductId', () => {
     tokenRequest.setCardNumber('4567350000427977');
     tokenRequest.setCardholderName('John Doe');
     tokenRequest.setExpiryDate('12/2030');
     tokenRequest.setSecurityCode('123');
+    tokenRequest.setProductPaymentId(1);
     expect(tokenRequest.getValues()).toEqual({
       cardNumber: '4567350000427977',
       cardholderName: 'John Doe',
       expiryDate: '12/2030',
       cvv: '123',
+      paymentProductId: 1,
     });
   });
 
-  it('should include undefined values', () => {
+  it('should include undefined for unset fields alongside set fields', () => {
     tokenRequest.setCardNumber('4567350000427977');
     tokenRequest.setExpiryDate(undefined);
-    expect(tokenRequest.getValues()).toEqual({
-      cardNumber: '4567350000427977',
-      expiryDate: undefined,
-    });
+    const values = tokenRequest.getValues();
+    expect(values.cardNumber).toBe('4567350000427977');
+    expect(values.expiryDate).toBeUndefined();
+    expect(values.cardholderName).toBeUndefined();
   });
 });
 

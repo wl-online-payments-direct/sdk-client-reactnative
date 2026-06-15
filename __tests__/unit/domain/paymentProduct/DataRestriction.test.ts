@@ -19,15 +19,14 @@ import { ValidationRuleType } from '../../../../src/domain/validation/rules/Vali
 
 const dataRestrictionsDto = cardPaymentProductJson.fields[0]!.dataRestrictions;
 
-describe('getValidationRules', () => {
-  let dataRestrictions: DataRestrictions;
-  beforeEach(() => {
-    dataRestrictions =
-      new DefaultPaymentProductFactory().createDataRestrictions(
-        dataRestrictionsDto
-      );
-  });
+let dataRestrictions: DataRestrictions;
+beforeEach(() => {
+  dataRestrictions = new DefaultPaymentProductFactory().createDataRestrictions(
+    dataRestrictionsDto
+  );
+});
 
+describe('getValidationRules', () => {
   it('should return validation rules with length 2', () => {
     const validationRules = dataRestrictions.getValidationRules();
     expect(validationRules.length).toBe(2);
@@ -43,14 +42,6 @@ describe('getValidationRules', () => {
 });
 
 describe('getValidationRule', () => {
-  let dataRestrictions: DataRestrictions;
-  beforeEach(() => {
-    dataRestrictions =
-      new DefaultPaymentProductFactory().createDataRestrictions(
-        dataRestrictionsDto
-      );
-  });
-
   it('should return validation rules with correct types: `length`, `regularExpression`', () => {
     const lengthRule = dataRestrictions.getValidationRule(
       ValidationRuleType.LENGTH
@@ -63,8 +54,9 @@ describe('getValidationRule', () => {
   });
 
   it('should return undefined for non-existing rule', () => {
-    // @ts-ignore
-    const nonDefinedRule = dataRestrictions.getValidationRule('nonDefined');
+    const nonDefinedRule = dataRestrictions.getValidationRule(
+      'nonDefined' as ValidationRuleType
+    );
 
     expect(nonDefinedRule).not.toBeDefined();
   });

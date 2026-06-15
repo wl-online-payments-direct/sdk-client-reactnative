@@ -11,9 +11,9 @@
  */
 
 /**
- * Awaiting a promise x times
+ * Calls `fn` sequentially `num` times, awaiting each call before the next.
  */
-export async function awaitTimes(
+export async function callNTimes(
   num: number,
 
   fn: () => Promise<any>

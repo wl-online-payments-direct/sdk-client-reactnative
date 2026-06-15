@@ -13,9 +13,9 @@
 import { describe, expect, it } from 'vitest';
 import { Formatter } from '../../../../src/infrastructure/utils/Formatter';
 
-const maskExpiryDate = '{{99}}-{{99}}';
-const maskCardNumber = '{{9999}} {{9999}} {{9999}} {{9999}} {{999}}';
-const maskUndefined = undefined;
+const expiryDateMask = '{{99}}-{{99}}';
+const cardNumberMask = '{{9999}} {{9999}} {{9999}} {{9999}} {{999}}';
+const undefinedMask = undefined;
 
 describe('apply mask', () => {
   describe('expiry date', () => {
@@ -25,14 +25,12 @@ describe('apply mask', () => {
       ['123', '12-3'],
       ['1234', '12-34'],
       ['12345', '12-34'],
-    ])(
-      'should convert raw value `%s` masked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.applyMask(maskExpiryDate, value);
-        expect(result).toBe(expected);
-      }
-    );
+    ])('should convert raw value `%s` masked value `%s`', (value, expected) => {
+      const result = Formatter.applyMask(expiryDateMask, value);
+      expect(result).toBe(expected);
+    });
   });
+
   describe('card number', () => {
     it.each([
       ['1', '1'],
@@ -56,14 +54,12 @@ describe('apply mask', () => {
       ['1234567890123456789', '1234 5678 9012 3456 789'],
       ['12345678901234567890', '1234 5678 9012 3456 789'],
       ['1234XX78901234567890', '1234 XX78 9012 3456 789'],
-    ])(
-      'should convert raw value `%s` masked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.applyMask(maskCardNumber, value);
-        expect(result).toBe(expected);
-      }
-    );
+    ])('should convert raw value `%s` masked value `%s`', (value, expected) => {
+      const result = Formatter.applyMask(cardNumberMask, value);
+      expect(result).toBe(expected);
+    });
   });
+
   describe('no mask', () => {
     it.each([
       ['1', '1'],
@@ -71,13 +67,16 @@ describe('apply mask', () => {
       ['123', '123'],
       ['1234', '1234'],
       ['12345', '12345'],
-    ])(
-      'should convert raw value `%s` masked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.applyMask(maskUndefined, value);
-        expect(result).toBe(expected);
-      }
-    );
+    ])('should convert raw value `%s` masked value `%s`', (value, expected) => {
+      const result = Formatter.applyMask(undefinedMask, value);
+      expect(result).toBe(expected);
+    });
+  });
+
+  describe('undefined value', () => {
+    it('returns undefined when value is undefined', () => {
+      expect(Formatter.applyMask(expiryDateMask, undefined)).toBeUndefined();
+    });
   });
 });
 
@@ -91,12 +90,13 @@ describe('remove mask', () => {
       ['12-345', '1234'],
     ])(
       'should convert masked value `%s` to unmasked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.removeMask(maskExpiryDate, value);
+      (value, expected) => {
+        const result = Formatter.removeMask(expiryDateMask, value);
         expect(result).toBe(expected);
       }
     );
   });
+
   describe('card number', () => {
     it.each([
       ['1', '1'],
@@ -121,12 +121,13 @@ describe('remove mask', () => {
       ['1234 5678 9012 3456 7890', '1234567890123456789'],
     ])(
       'should convert masked value `%s` to unmasked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.removeMask(maskCardNumber, value);
+      (value, expected) => {
+        const result = Formatter.removeMask(cardNumberMask, value);
         expect(result).toBe(expected);
       }
     );
   });
+
   describe('no mask', () => {
     it.each([
       ['1', '1'],
@@ -136,10 +137,20 @@ describe('remove mask', () => {
       ['12-345', '12-345'],
     ])(
       'should convert masked value `%s` to unmasked value `%s`',
-      (value: string, expected: string) => {
-        const result = Formatter.removeMask(maskUndefined, value);
+      (value, expected) => {
+        const result = Formatter.removeMask(undefinedMask, value);
         expect(result).toBe(expected);
       }
     );
+  });
+});
+
+describe('getMaxLengthBasedOnMask', () => {
+  it('returns the max raw input length when a mask is provided', () => {
+    expect(Formatter.getMaxLengthBasedOnMask(expiryDateMask)).toBe(4);
+  });
+
+  it('returns -1 when no mask is provided', () => {
+    expect(Formatter.getMaxLengthBasedOnMask(undefined)).toBe(-1);
   });
 });

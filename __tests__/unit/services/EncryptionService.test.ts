@@ -11,75 +11,89 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
+import type { MockProxy } from 'vitest-mock-extended';
 import { cardPaymentProductJson } from '../../__fixtures__/payment-product-json';
 import { publicKeyResponse } from '../../__fixtures__/public-key-response';
 import { DefaultEncryptionService } from '../../../src/services/DefaultEncryptionService';
+import { PaymentRequest, CreditCardTokenRequest } from '../../../src';
 import { CacheManager } from '../../../src/infrastructure/utils/CacheManager';
 import { TestApiClient } from '../testUtils/TestApiClient';
-import { PublicKeyResponse } from '../../../src';
-import { PaymentRequest, CreditCardTokenRequest } from '../../../src';
+import { PublicKeyResponse, ResponseError } from '../../../src';
 import { DefaultPaymentProductFactory } from '../../../src/infrastructure/factories/DefaultPaymentProductFactory';
-import { Encryptor } from '../../../src/infrastructure/encryption/Encryptor';
+import type { EncryptionProvider } from '../../../src/infrastructure/encryption/EncryptionProvider';
 import type { DeviceInformationProvider } from '../../../src/infrastructure/interfaces/DeviceInformationProvider';
+import type { Metadata } from '../../../src/infrastructure/encryption/types';
 
 let service: DefaultEncryptionService;
-let encryptor: Encryptor;
-let mockDeviceInformationProvider: DeviceInformationProvider;
+let deviceInformationProvider: MockProxy<DeviceInformationProvider>;
+let encryptionProvider: MockProxy<EncryptionProvider>;
+
+const mockMetadata: Metadata = {
+  screenSize: '360x640',
+  platformIdentifier: 'android/10',
+  sdkIdentifier: 'ReactNativeSdk/test',
+  sdkCreator: 'Online-Payments',
+  appIdentifier: 'test-app',
+  deviceBrand: 'TestBrand',
+  deviceType: 'TestDevice',
+};
 
 beforeEach(() => {
-  mockDeviceInformationProvider = {
-    getMetadata: () => ({
-      screenSize: '1080x1920',
-      platformIdentifier: 'test-platform',
-      sdkIdentifier: 'test-sdk',
-      sdkCreator: 'test-creator',
-      appIdentifier: 'test-creator',
-      deviceBrand: 'Apple',
-      deviceType: 'iPhone',
-    }),
-  };
+  deviceInformationProvider = mock<DeviceInformationProvider>();
+  deviceInformationProvider.getMetadata.mockReturnValue(mockMetadata);
 
-  encryptor = new Encryptor({
-    clientSessionId: 'test-session-id',
-  });
+  encryptionProvider = mock<EncryptionProvider>();
+  encryptionProvider.encrypt.mockReturnValue('mock.encrypted.jwe.token.value');
+  encryptionProvider.encryptTokenRequest.mockReturnValue(
+    'mock.encrypted.jwe.token.value'
+  );
 
   service = new DefaultEncryptionService(
-    encryptor,
-    mockDeviceInformationProvider,
+    encryptionProvider,
+    deviceInformationProvider,
     new CacheManager(),
     new TestApiClient()
   );
 });
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('DefaultEncryptionService (integration)', () => {
-  it('encryptPaymentRequest returns encryptedFields', async () => {
+describe('DefaultEncryptionService', () => {
+  const createValidPaymentRequest = () => {
     const paymentProduct =
       new DefaultPaymentProductFactory().createPaymentProduct(
         cardPaymentProductJson
       );
     const request = new PaymentRequest(paymentProduct);
-
     request.setValue('cvv', '123');
     request.setValue('expiryDate', '12/2026');
     request.setValue('cardNumber', '4242424242424242');
+    return request;
+  };
+
+  const createValidTokenRequest = () => {
+    const token = new CreditCardTokenRequest();
+    token.setSecurityCode('123');
+    token.setCardNumber('424242424242');
+    token.setProductPaymentId(1);
+    return token;
+  };
+
+  it('encryptPaymentRequest returns encrypted customer input', async () => {
+    const request = createValidPaymentRequest();
 
     getTestApiSpy();
+
     const result = await service.encryptPaymentRequest(request);
 
     expect(result).toHaveProperty('encryptedCustomerInput');
     expect(result.encryptedCustomerInput).toBeDefined();
   });
 
-  it('encryptTokenRequest returns encryptedFields', async () => {
-    const token = new CreditCardTokenRequest();
-
-    token.setSecurityCode('123');
-    token.setCardNumber('424242424242');
-    token.setProductPaymentId(1);
+  it('encryptTokenRequest returns encrypted customer input', async () => {
+    const token = createValidTokenRequest();
 
     getTestApiSpy();
     const result = await service.encryptTokenRequest(token);
@@ -111,7 +125,6 @@ describe('DefaultEncryptionService (integration)', () => {
     };
 
     const cacheSetSpy = vi.spyOn(CacheManager.prototype, 'set');
-
     const apiSpy = getTestApiSpy(publicKeyDto);
 
     const result = await service.getPublicKey();
@@ -121,14 +134,70 @@ describe('DefaultEncryptionService (integration)', () => {
     expect(result).toBeInstanceOf(Object);
     expect(result.keyId).toBe('test-key-id');
   });
+
+  it('getPublicKey throws ResponseError when API response is invalid', async () => {
+    vi.spyOn(TestApiClient.prototype, 'get').mockResolvedValue({
+      success: false,
+      status: 400,
+      data: undefined,
+    });
+
+    const promise = service.getPublicKey();
+
+    await expect(promise).rejects.toThrow(ResponseError);
+  });
+
+  it('encryptPaymentRequest returns encodedClientMetaInfo', async () => {
+    const request = createValidPaymentRequest();
+    getTestApiSpy();
+
+    const result = await service.encryptPaymentRequest(request);
+
+    expect(result.encodedClientMetaInfo).toBeDefined();
+    expect(result.encodedClientMetaInfo).toBeTruthy();
+  });
+
+  it('encryptPaymentRequest uses encryptionProvider.encrypt when request is a PaymentRequest', async () => {
+    const request = createValidPaymentRequest();
+    getTestApiSpy();
+
+    await service.encryptPaymentRequest(request);
+
+    expect(encryptionProvider.encrypt).toHaveBeenCalledWith(
+      publicKeyResponse,
+      request
+    );
+    expect(encryptionProvider.encryptTokenRequest).not.toHaveBeenCalled();
+  });
+
+  it('encryptTokenRequest returns encodedClientMetaInfo', async () => {
+    const token = createValidTokenRequest();
+    getTestApiSpy();
+
+    const result = await service.encryptTokenRequest(token);
+
+    expect(result.encodedClientMetaInfo).toBeDefined();
+    expect(result.encodedClientMetaInfo).toBeTruthy();
+  });
+
+  it('encryptTokenRequest uses encryptionProvider.encryptTokenRequest when request is a CreditCardTokenRequest', async () => {
+    const token = createValidTokenRequest();
+    getTestApiSpy();
+
+    await service.encryptTokenRequest(token);
+
+    expect(encryptionProvider.encryptTokenRequest).toHaveBeenCalledWith(
+      publicKeyResponse,
+      token
+    );
+    expect(encryptionProvider.encrypt).not.toHaveBeenCalled();
+  });
 });
 
-function getTestApiSpy(publicKeyJson?: PublicKeyResponse) {
-  return vi.spyOn(TestApiClient.prototype, 'get').mockReturnValue(
-    Promise.resolve({
-      success: true,
-      status: 200,
-      data: publicKeyJson ?? publicKeyResponse,
-    })
-  );
+function getTestApiSpy(publicKeyJson: PublicKeyResponse = publicKeyResponse) {
+  return vi.spyOn(TestApiClient.prototype, 'get').mockResolvedValue({
+    success: true,
+    status: 200,
+    data: publicKeyJson,
+  });
 }

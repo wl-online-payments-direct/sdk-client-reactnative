@@ -35,4 +35,9 @@ createValidationRuleTest(rule, [
     isValid: false,
     value: '12abAB',
   },
+  {
+    msg: 'should pass validation when value contains matching substring (regex is unanchored)',
+    isValid: true,
+    value: '12abABCextra',
+  },
 ]);

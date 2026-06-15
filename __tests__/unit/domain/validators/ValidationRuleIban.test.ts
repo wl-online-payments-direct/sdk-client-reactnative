@@ -22,26 +22,26 @@ createValidationRuleTest(rule, [
     'NL91ABNA0417164300',
     'FR1420041010050500013M02606',
   ].map((value) => ({
-    msg: 'should validate correct IBAN numbers',
+    msg: `should validate correct IBAN: ${value}`,
     value,
     isValid: true,
   })),
   ...['DE89 3704 0044 0532 0130 00', 'GB82 WEST 1234 5698 7654 32'].map(
     (value) => ({
-      msg: 'should validate IBAN numbers with spaces',
+      msg: `should validate IBAN with spaces: ${value}`,
       value,
       isValid: true,
     })
   ),
   ...['DE89370400440532013001', 'DE8937040044', 'XX89370400440532013000'].map(
     (value) => ({
-      msg: 'should reject invalid IBAN numbers',
+      msg: `should reject invalid IBAN: ${value}`,
       value,
       isValid: false,
     })
   ),
   ...['not-an-iban', '1234567890', ''].map((value) => ({
-    msg: 'should reject non-IBAN values',
+    msg: `should reject non-IBAN value: "${value}"`,
     value,
     isValid: false,
   })),

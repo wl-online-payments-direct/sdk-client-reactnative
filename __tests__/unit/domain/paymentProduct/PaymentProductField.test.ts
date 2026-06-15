@@ -12,8 +12,9 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { paymentProductFieldJson } from '../../../__fixtures__/payment-product-field-json';
-import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
 import { PaymentProductField } from '../../../../src';
+import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
+import { DataRestrictions } from '../../../../src/domain/paymentProduct/productField/DataRestrictions';
 
 describe('PaymentProductField', () => {
   let paymentProductField: PaymentProductField;
@@ -93,12 +94,92 @@ describe('PaymentProductField', () => {
 
     it('should return list with error messages', () => {
       const errorMessages = paymentProductField.validate('424');
-      expect(errorMessages).length(2);
+
+      expect(errorMessages).toHaveLength(2);
+
       const sortedErrors = errorMessages.sort((a, b) =>
         a.type > b.type ? 1 : -1
       );
-      expect(sortedErrors[0]!.type).toBe('length');
-      expect(sortedErrors[1]!.type).toBe('luhn');
+
+      const [lengthError, luhnError] = sortedErrors;
+
+      if (!lengthError || !luhnError) {
+        throw new Error('Expected length and luhn validation errors.');
+      }
+
+      expect(lengthError.type).toBe('length');
+      expect(luhnError.type).toBe('luhn');
+    });
+  });
+
+  describe('getLabel when no display hints', () => {
+    it('returns the field id as the label when no display hints are defined', () => {
+      const field = new PaymentProductField(
+        'myFieldId',
+        'string',
+        new DataRestrictions(false)
+      );
+
+      expect(field.getLabel()).toBe('myFieldId');
+    });
+  });
+
+  describe('getDisplayOrder when no display hints', () => {
+    it('returns 0 as the display order when no display hints are defined', () => {
+      const field = new PaymentProductField(
+        'myFieldId',
+        'string',
+        new DataRestrictions(false)
+      );
+
+      expect(field.getDisplayOrder()).toBe(0);
+    });
+  });
+
+  describe('shouldObfuscate when no display hints', () => {
+    it('returns false when no display hints are defined', () => {
+      const field = new PaymentProductField(
+        'myFieldId',
+        'string',
+        new DataRestrictions(false)
+      );
+
+      expect(field.shouldObfuscate()).toBe(false);
+    });
+  });
+
+  describe('getPlaceholder when no display hints', () => {
+    it('returns undefined when no display hints are defined', () => {
+      const field = new PaymentProductField(
+        'myFieldId',
+        'string',
+        new DataRestrictions(false)
+      );
+
+      expect(field.getPlaceholder()).toBeUndefined();
+    });
+  });
+
+  describe('validate when required and no value', () => {
+    it('returns a required-field error when the field is required and no value is provided', () => {
+      const field = new PaymentProductField(
+        'myFieldId',
+        'string',
+        new DataRestrictions(true)
+      );
+
+      const errors = field.validate(undefined);
+
+      expect(errors).toHaveLength(1);
+
+      const [error] = errors;
+
+      if (!error) {
+        throw new Error('Expected one required-field validation error.');
+      }
+
+      expect(error.paymentProductFieldId).toBe('myFieldId');
+      expect(error.type).toBe('requiredField');
     });
   });
 });

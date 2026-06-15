@@ -10,7 +10,7 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { beforeAll } from 'vitest';
+import { afterAll, beforeAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getEnvVar, getSessionFromSdk } from './utils';
@@ -89,12 +89,13 @@ beforeAll(async () => {
 
 const realFetch = globalThis.fetch;
 
+// Patch fetch to include credentials for integration tests with Node.js SDK
+// Note: credentials: 'include' is browser-only semantic but required for test server
 globalThis.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-  init.credentials = 'include';
-
-  try {
-    return await realFetch(input, init);
-  } catch (e) {
-    throw e;
-  }
+  // Spread creates new object, avoiding mutation
+  return realFetch(input, { ...init, credentials: 'include' });
 };
+
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});

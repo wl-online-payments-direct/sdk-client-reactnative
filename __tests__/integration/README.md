@@ -20,4 +20,4 @@ When you run this command on your local machine (when the environment var `CI` i
 notice the first time you run it, it can take a few seconds to start up the test environment.
 On startup the session details are fetched from the API explorer and stored in cache every 30
 minutes. This is done to speed up the development process. The cache is stored in
-`./tests/integration/.cache`.
+`__tests__/integration/.cache`.

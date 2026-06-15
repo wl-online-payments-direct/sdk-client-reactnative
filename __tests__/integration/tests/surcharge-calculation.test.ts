@@ -13,38 +13,24 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
-  awaitTimes,
+  callNTimes,
   createSdkClient,
   getApiClientSpyMock,
   getEnvVar,
   getSessionFromSdk,
 } from '../utils';
-import {
-  withNoSurchargeCalculationResponse,
-  withSurchargeCalculationResponse,
-} from '../__fixtures__/surcharge-calculation';
 import type { AmountOfMoney, PartialCard } from '../../../src';
-import { init, OnlinePaymentSdk } from '../../../src';
+import { init, OnlinePaymentSdk, SurchargeResult } from '../../../src';
 import { getConfiguration } from '../setup';
 
 // @todo: un-skip this test suite, once the merchant has been configured to support surcharge
 describe.skip('session.getSurchargeCalculation', () => {
   let session: OnlinePaymentSdk;
-  const partialCreditCardNumberWithSurcharge = getEnvVar(
-    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const cardWithSurchargeToken = getEnvVar(
-    'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const partialCreditCardNumberWithNoSurcharge = getEnvVar(
-    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const productIdWithSurcharge = getEnvVar(
-    'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const productIdWithoutSurcharge = getEnvVar(
-    'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-  );
+  let partialCreditCardNumberWithSurcharge: string;
+  let cardWithSurchargeToken: string;
+  let partialCreditCardNumberWithNoSurcharge: string;
+  let productIdWithSurcharge: string;
+  let productIdWithoutSurcharge: string;
 
   const amountOfMoney: AmountOfMoney = {
     amount: 1000,
@@ -52,6 +38,22 @@ describe.skip('session.getSurchargeCalculation', () => {
   };
 
   beforeAll(async () => {
+    partialCreditCardNumberWithSurcharge = getEnvVar(
+      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    cardWithSurchargeToken = getEnvVar(
+      'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    partialCreditCardNumberWithNoSurcharge = getEnvVar(
+      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    productIdWithSurcharge = getEnvVar(
+      'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    productIdWithoutSurcharge = getEnvVar(
+      'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+    );
+
     const client = createSdkClient({
       apiKeyId: getEnvVar('VITE_MERCHANT_KEY_SURCHARGE_CURRENCY_CONVERSION'),
       secretApiKey: getEnvVar(
@@ -74,7 +76,14 @@ describe.skip('session.getSurchargeCalculation', () => {
       amountOfMoney,
       partialCard
     );
-    expect(result).toStrictEqual(withSurchargeCalculationResponse);
+    expect(result.surcharges).toHaveLength(1);
+    expect(result.surcharges[0]).toMatchObject({
+      paymentProductId: parseInt(productIdWithSurcharge, 10),
+      result: SurchargeResult.OK,
+      netAmount: { amount: 1000, currencyCode: 'EUR' },
+      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+    });
   });
 
   it('success with surcharge with provided card without payment product id', async () => {
@@ -85,7 +94,13 @@ describe.skip('session.getSurchargeCalculation', () => {
       amountOfMoney,
       partialCard
     );
-    expect(result).toStrictEqual(withSurchargeCalculationResponse);
+    expect(result.surcharges).toHaveLength(1);
+    expect(result.surcharges[0]).toMatchObject({
+      result: SurchargeResult.OK,
+      netAmount: { amount: 1000, currencyCode: 'EUR' },
+      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+    });
   });
 
   it('success with surcharge with provided token', async () => {
@@ -93,7 +108,13 @@ describe.skip('session.getSurchargeCalculation', () => {
       amountOfMoney,
       cardWithSurchargeToken
     );
-    expect(result).toStrictEqual(withSurchargeCalculationResponse);
+    expect(result.surcharges).toHaveLength(1);
+    expect(result.surcharges[0]).toMatchObject({
+      result: SurchargeResult.OK,
+      netAmount: { amount: 1000, currencyCode: 'EUR' },
+      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+    });
   });
 
   it('success with no surcharge with provided card with payment product id', async () => {
@@ -105,7 +126,14 @@ describe.skip('session.getSurchargeCalculation', () => {
       amountOfMoney,
       partialCard
     );
-    expect(result).toStrictEqual(withNoSurchargeCalculationResponse);
+    expect(result.surcharges).toHaveLength(1);
+    expect(result.surcharges[0]).toMatchObject({
+      paymentProductId: parseInt(productIdWithoutSurcharge, 10),
+      result: SurchargeResult.NO_SURCHARGE,
+      netAmount: { amount: 1000, currencyCode: 'EUR' },
+      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+    });
   });
 
   it('success with no surcharge with provided card without payment product id', async () => {
@@ -116,7 +144,13 @@ describe.skip('session.getSurchargeCalculation', () => {
       amountOfMoney,
       partialCard
     );
-    expect(result).toStrictEqual(withNoSurchargeCalculationResponse);
+    expect(result.surcharges).toHaveLength(1);
+    expect(result.surcharges[0]).toMatchObject({
+      result: SurchargeResult.NO_SURCHARGE,
+      netAmount: { amount: 1000, currencyCode: 'EUR' },
+      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
+    });
   });
 
   it('when called again, should result from cache instead network call', async () => {
@@ -127,7 +161,7 @@ describe.skip('session.getSurchargeCalculation', () => {
     const spy = getApiClientSpyMock('post', {
       withSurchargeCalculationResponse,
     });
-    await awaitTimes(3, () =>
+    await callNTimes(3, () =>
       session.getSurchargeCalculation(
         amountOfMoneySpyTest,
         cardWithSurchargeToken

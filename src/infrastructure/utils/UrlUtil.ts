@@ -25,11 +25,11 @@ export const UrlUtil = {
 
   /**
    * Convert an object into a query string
-   * Filter out falsy values
+   * Filter out undefined and empty-string values; zero (0) is preserved.
    *
    * @example:
    * ```ts
-   * objectToQueryString({ a: 1, b: 2, c: false, d: null, e: undefined, f: 0, g: '' }) // => 'a=1&b=2'
+   * objectToQueryString({ a: 1, b: 2, c: false, d: null, e: undefined, f: 0, g: '' }) // => 'a=1&b=2&c=false&f=0'
    * ```
    */
   objectToQueryString(
@@ -38,7 +38,7 @@ export const UrlUtil = {
     const params = new URLSearchParams();
     for (const key of Object.keys(obj)) {
       const value = obj[key];
-      if (!value) {
+      if (value === undefined || value === null || value === '') {
         continue;
       }
 

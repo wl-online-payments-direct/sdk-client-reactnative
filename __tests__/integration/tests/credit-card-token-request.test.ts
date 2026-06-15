@@ -13,7 +13,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getConfiguration, getSessionDetails } from '../setup';
 import { createTokenRequest, getEnvVar } from '../utils';
-import { CreditCardTokenRequest, init, OnlinePaymentSdk } from '../../../src';
+import {
+  OnlinePaymentSdk,
+  CreditCardTokenRequest,
+  EncryptionError,
+} from '../../../src';
+import { init } from '../../../src';
 
 const SDK_MERCHANT_ID = getEnvVar('VITE_ONLINEPAYMENTS_SDK_MERCHANT_ID');
 
@@ -51,23 +56,32 @@ describe('createToken', () => {
 
       expect(result).toBeDefined();
     } catch (error) {
+      console.log(error);
       expect(error).toBeUndefined();
     }
   });
 
   it('response success; should be an instance of `string`', async () => {
     tokenRequest.setProductPaymentId(1);
-    tokenRequest.setCardNumber('42424242424242');
+    tokenRequest.setCardNumber('4242424242424242');
     const response = await session.encryptTokenRequest(tokenRequest);
 
     expect(response).toBeDefined();
   });
 
+  it('returns encodedClientMetaInfo in the encrypted token response', async () => {
+    tokenRequest.setProductPaymentId(1);
+    tokenRequest.setCardNumber('4242424242424242');
+    const response = await session.encryptTokenRequest(tokenRequest);
+
+    expect(response.encodedClientMetaInfo).toBeDefined();
+  });
+
   it('should fail if paymentProductId not provided', async () => {
-    tokenRequest.setCardNumber('42424242424242');
+    tokenRequest.setCardNumber('4242424242424242');
 
     await expect(session.encryptTokenRequest(tokenRequest)).rejects.toThrow(
-      'Error encrypting credit card token request: the payment product ID is not set.'
+      EncryptionError
     );
   });
 });

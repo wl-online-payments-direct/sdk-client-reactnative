@@ -12,8 +12,8 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountOnFileJson } from '../../../__fixtures__/account-on-file-json';
+import { AccountOnFile, AccountOnFileAttributeStatus } from '../../../../src';
 import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
-import { AccountOnFile } from '../../../../src';
 
 let accountOnFile: AccountOnFile;
 beforeEach(() => {
@@ -90,5 +90,33 @@ describe('getValue', () => {
   it('should return `` for cvv', () => {
     const value = accountOnFile.getValue('cvv');
     expect(value).toBe('');
+  });
+});
+
+describe('getAttribute', () => {
+  it('returns the AccountOnFileAttribute for an existing field key', () => {
+    const attribute = accountOnFile.getAttribute('cardNumber');
+
+    expect(attribute).toBeDefined();
+    expect(attribute?.key).toBe('cardNumber');
+    expect(attribute?.status).toBe(AccountOnFileAttributeStatus.READ_ONLY);
+    expect(attribute?.value).toBe('9999-9999-9999-9999');
+  });
+
+  it('returns undefined for an unknown field key', () => {
+    expect(accountOnFile.getAttribute('unknownField')).toBeUndefined();
+  });
+});
+
+describe('isWritable for unknown key', () => {
+  it('returns true for a field key not present in the account on file', () => {
+    // Unknown keys are not READ_ONLY, so they are treated as writable
+    expect(accountOnFile.isWritable('unknownField')).toBe(true);
+  });
+});
+
+describe('getValue for unknown key', () => {
+  it('returns undefined for a field key not present in the account on file', () => {
+    expect(accountOnFile.getValue('unknownField')).toBeUndefined();
   });
 });

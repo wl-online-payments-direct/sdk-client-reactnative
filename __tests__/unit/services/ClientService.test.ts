@@ -19,8 +19,10 @@ import {
   type CurrencyConversionResponse,
   IinDetailsResponse,
   IinDetailStatus,
+  InvalidArgumentError,
   type PartialCard,
   type PaymentContextWithAmount,
+  ResponseError,
   type SdkResponse,
   type SurchargeCalculationRequest,
   type SurchargeCalculationResponse,
@@ -31,14 +33,15 @@ import { CacheManager } from '../../../src/infrastructure/utils/CacheManager';
 import { TestApiClient } from '../testUtils/TestApiClient';
 
 let service: ClientService;
-let amount: AmountOfMoney;
+let amountOfMoney: AmountOfMoney;
 let partialCard: PartialCard;
 let currencyConversionResponse: CurrencyConversionResponse;
+let surchargeResponse: SurchargeCalculationResponse;
 
 beforeEach(() => {
   service = new DefaultClientService(new CacheManager(), new TestApiClient());
 
-  amount = {
+  amountOfMoney = {
     amount: 1000,
     currencyCode: 'EUR',
   };
@@ -71,6 +74,18 @@ beforeEach(() => {
         source: 'test source',
       },
     },
+  };
+
+  surchargeResponse = {
+    surcharges: [
+      {
+        result: SurchargeResult.OK,
+        paymentProductId: 1,
+        surchargeAmount: { amount: 25, currencyCode: 'EUR' },
+        netAmount: { amount: 1500, currencyCode: 'EUR' },
+        totalAmount: { amount: 1525, currencyCode: 'EUR' },
+      },
+    ],
   };
 });
 
@@ -144,8 +159,105 @@ describe('getIinDetails', () => {
       paymentContext: paymentContextWithAmount,
     });
 
-    expect(cacheSetSpy).toHaveBeenCalled();
+    expect(cacheSetSpy).toHaveBeenCalledTimes(1);
+    expect(cacheSetSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`getIinDetails-${bin}`),
+      iinDetails
+    );
     expect(result).toEqual(iinDetails);
+  });
+
+  it('formats partial credit card number and uses it as bin in API request on cache miss', async () => {
+    const apiSpy = vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: true,
+      status: 200,
+      data: {
+        status: IinDetailStatus.SUPPORTED,
+        isAllowedInContext: true,
+        countryCode: 'NL',
+        paymentProductId: 1,
+      } as IinDetailsResponse,
+    });
+
+    await service.getIinDetails('1234 5678 9', paymentContextWithAmount);
+
+    expect(apiSpy).toHaveBeenCalledTimes(1);
+
+    const [, options] = apiSpy.mock.calls[0]!;
+    const body = JSON.parse(options?.body as string);
+    expect(body.bin).toBe('12345678');
+  });
+
+  it('throws InvalidArgumentError when formatted credit card number has fewer than 6 digits', async () => {
+    const promise = service.getIinDetails('12345', paymentContextWithAmount);
+
+    try {
+      await promise;
+      expect.fail('Should throw an error');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidArgumentError);
+
+      const response = (
+        (error as InvalidArgumentError).metadata as { data: IinDetailsResponse }
+      ).data;
+
+      expect(response.status).toBe(IinDetailStatus.NOT_ENOUGH_DIGITS);
+    }
+  });
+
+  it('returns IinDetailsResponse with SUPPORTED status when isAllowedInContext is not false', async () => {
+    vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: true,
+      status: 200,
+      data: {
+        status: IinDetailStatus.SUPPORTED,
+        isAllowedInContext: true,
+        countryCode: 'NL',
+        paymentProductId: 1,
+      } as IinDetailsResponse,
+    });
+
+    const result = await service.getIinDetails(
+      '424242424242',
+      paymentContextWithAmount
+    );
+
+    expect(result.status).toBe(IinDetailStatus.SUPPORTED);
+  });
+
+  it('returns IinDetailsResponse with EXISTING_BUT_NOT_ALLOWED status when isAllowedInContext is false', async () => {
+    vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: true,
+      status: 200,
+      data: {
+        status: IinDetailStatus.EXISTING_BUT_NOT_ALLOWED,
+        isAllowedInContext: false,
+        countryCode: 'NL',
+        paymentProductId: 1,
+      } as IinDetailsResponse,
+    });
+
+    const result = await service.getIinDetails(
+      '424242424242',
+      paymentContextWithAmount
+    );
+
+    expect(result.status).toBe(IinDetailStatus.EXISTING_BUT_NOT_ALLOWED);
+  });
+
+  it('throws ResponseError when API response is invalid', async () => {
+    vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: false,
+      status: 400,
+      data: undefined,
+    });
+
+    const promise = service.getIinDetails(
+      '424242424242',
+      paymentContextWithAmount
+    );
+
+    await expect(promise).rejects.toThrow(ResponseError);
   });
 });
 
@@ -185,13 +297,8 @@ describe('getCurrencyConversionQuote', () => {
       .mockReturnValue(cachedValue);
     const cacheSetSpy = vi.spyOn(CacheManager.prototype, 'set');
     const result = await service.getCurrencyConversionQuote(
-      {
-        amount: 1000,
-        currencyCode: 'EUR',
-      },
-      {
-        partialCreditCardNumber: '123456789',
-      }
+      amountOfMoney,
+      partialCard
     );
 
     expect(cacheHasSpy).toHaveBeenCalledTimes(1);
@@ -210,7 +317,7 @@ describe('getCurrencyConversionQuote', () => {
           paymentProductId: partialCard.paymentProductId,
         },
       },
-      transaction: { amount: amount },
+      transaction: { amount: amountOfMoney },
     };
 
     const apiResponse: SdkResponse<CurrencyConversionResponse> = {
@@ -225,7 +332,7 @@ describe('getCurrencyConversionQuote', () => {
     const cacheSetSpy = vi.spyOn(CacheManager.prototype, 'set');
 
     const result = await service.getCurrencyConversionQuote(
-      amount,
+      amountOfMoney,
       partialCard
     );
 
@@ -240,48 +347,62 @@ describe('getCurrencyConversionQuote', () => {
 
     expect(cacheSetSpy).toHaveBeenCalledTimes(1);
     expect(cacheSetSpy).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.stringContaining(
+        `getCurrencyConversionQuote-${amountOfMoney.amount}-${amountOfMoney.currencyCode}`
+      ),
       currencyConversionResponse
     );
 
     expect(result).toBe(currencyConversionResponse);
   });
+
+  it('uses token card source in request when cardOrToken is a string', async () => {
+    const token = 'token-123';
+    const apiSpy = vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: true,
+      status: 200,
+      data: currencyConversionResponse,
+    });
+
+    await service.getCurrencyConversionQuote(amountOfMoney, token);
+
+    expect(apiSpy).toHaveBeenCalledTimes(1);
+
+    const [, options] = apiSpy.mock.calls[0]!;
+    const body = JSON.parse(options?.body as string);
+    expect(body.cardSource).toEqual({ token });
+  });
+
+  it('throws ResponseError when API response is invalid', async () => {
+    vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: false,
+      status: 400,
+      data: undefined,
+    });
+
+    const promise = service.getCurrencyConversionQuote(
+      amountOfMoney,
+      partialCard
+    );
+
+    await expect(promise).rejects.toThrow(ResponseError);
+  });
 });
 
 describe('getSurchargeCalculation', () => {
-  it('returns cached value for surcharge and doesnt call API', async () => {
-    const cachedValue: SurchargeCalculationResponse = {
-      surcharges: [
-        {
-          result: SurchargeResult.OK,
-          paymentProductId: 1,
-          surchargeAmount: { amount: 25, currencyCode: 'EUR' },
-          netAmount: {
-            amount: 1500,
-            currencyCode: 'EUR',
-          },
-          totalAmount: { amount: 1525, currencyCode: 'EUR' },
-        },
-      ],
-    };
-
+  it("returns cached value for surcharge and doesn't call API", async () => {
     const apiSpy = vi.spyOn(TestApiClient.prototype, 'post');
     const cacheHasSpy = vi
       .spyOn(CacheManager.prototype, 'has')
       .mockReturnValue(true);
     const cacheGetSpy = vi
       .spyOn(CacheManager.prototype, 'get')
-      .mockReturnValue(cachedValue);
+      .mockReturnValue(surchargeResponse);
     const cacheSetSpy = vi.spyOn(CacheManager.prototype, 'set');
 
     const result = await service.getSurchargeCalculation(
-      {
-        amount: 1000,
-        currencyCode: 'EUR',
-      },
-      {
-        partialCreditCardNumber: '123456789',
-      }
+      amountOfMoney,
+      partialCard
     );
 
     expect(cacheHasSpy).toHaveBeenCalledTimes(1);
@@ -289,7 +410,7 @@ describe('getSurchargeCalculation', () => {
     expect(apiSpy).not.toHaveBeenCalled();
     expect(cacheSetSpy).not.toHaveBeenCalled();
 
-    expect(result).toBe(cachedValue);
+    expect(result).toBe(surchargeResponse);
   });
 
   it('calls API, caches result, and returns data when not cached', async () => {
@@ -300,13 +421,12 @@ describe('getSurchargeCalculation', () => {
           paymentProductId: partialCard.paymentProductId,
         },
       },
-      amountOfMoney: amount,
+      amountOfMoney: amountOfMoney,
     };
-
-    const apiResponse: SdkResponse<CurrencyConversionResponse> = {
+    const apiResponse: SdkResponse<SurchargeCalculationResponse> = {
       status: 200,
       success: true,
-      data: currencyConversionResponse,
+      data: surchargeResponse,
     };
 
     const apiSpy = vi
@@ -314,7 +434,10 @@ describe('getSurchargeCalculation', () => {
       .mockResolvedValue(apiResponse);
     const cacheSetSpy = vi.spyOn(CacheManager.prototype, 'set');
 
-    const result = await service.getSurchargeCalculation(amount, partialCard);
+    const result = await service.getSurchargeCalculation(
+      amountOfMoney,
+      partialCard
+    );
 
     expect(apiSpy).toHaveBeenCalledTimes(1);
 
@@ -326,10 +449,41 @@ describe('getSurchargeCalculation', () => {
 
     expect(cacheSetSpy).toHaveBeenCalledTimes(1);
     expect(cacheSetSpy).toHaveBeenCalledWith(
-      expect.any(String),
-      currencyConversionResponse
+      expect.stringContaining(
+        `getSurchargeCalculation-${amountOfMoney.amount}-${amountOfMoney.currencyCode}`
+      ),
+      surchargeResponse
     );
 
-    expect(result).toBe(currencyConversionResponse);
+    expect(result).toBe(surchargeResponse);
+  });
+
+  it('uses token card source in request when cardOrToken is a string', async () => {
+    const token = 'token-123';
+    const apiSpy = vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: true,
+      status: 200,
+      data: surchargeResponse,
+    });
+
+    await service.getSurchargeCalculation(amountOfMoney, token);
+
+    expect(apiSpy).toHaveBeenCalledTimes(1);
+
+    const [, options] = apiSpy.mock.calls[0]!;
+    const body = JSON.parse(options?.body as string);
+    expect(body.cardSource).toEqual({ token });
+  });
+
+  it('throws ResponseError when API response is invalid', async () => {
+    vi.spyOn(TestApiClient.prototype, 'post').mockResolvedValue({
+      success: false,
+      status: 400,
+      data: undefined,
+    });
+
+    const promise = service.getSurchargeCalculation(amountOfMoney, partialCard);
+
+    await expect(promise).rejects.toThrow(ResponseError);
   });
 });

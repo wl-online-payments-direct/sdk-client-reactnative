@@ -17,13 +17,8 @@ import {
   cardPaymentProductJson,
   unsupportedCardPaymentProductJson,
 } from '../../__fixtures__/payment-product-json';
-import { awaitTimes, getApiClientSpyMock } from '../utils';
-import {
-  BasicPaymentProducts,
-  init,
-  OnlinePaymentSdk,
-  PaymentProduct,
-} from '../../../src';
+import { callNTimes, getApiClientSpyMock } from '../utils';
+import { BasicPaymentProducts, init, OnlinePaymentSdk } from '../../../src';
 
 describe('sdk.getBasicPaymentItems', () => {
   let session: OnlinePaymentSdk;
@@ -35,14 +30,6 @@ describe('sdk.getBasicPaymentItems', () => {
     const basicPaymentItems =
       await session.getBasicPaymentProducts(paymentContext);
     expect(basicPaymentItems).toBeInstanceOf(BasicPaymentProducts);
-  });
-
-  it('response success; should be an instance of `paymentProduct`', async () => {
-    const response = await session.getPaymentProduct(
-      cardPaymentProductJson.id,
-      paymentContext
-    );
-    expect(response).toBeInstanceOf(PaymentProduct);
   });
 
   it('should throw an `ClientError` with message `"No payment products available"` when there are no products found (`json.paymentProducts`)', async () => {
@@ -58,7 +45,7 @@ describe('sdk.getBasicPaymentItems', () => {
     const spy = getApiClientSpyMock('getWithContext', {
       paymentProducts: [cardPaymentProductJson],
     });
-    await awaitTimes(3, () => session.getBasicPaymentProducts(paymentContext));
+    await callNTimes(3, () => session.getBasicPaymentProducts(paymentContext));
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
   });

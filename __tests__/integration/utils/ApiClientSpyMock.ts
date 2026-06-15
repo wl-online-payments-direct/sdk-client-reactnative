@@ -25,6 +25,6 @@ export function getApiClientSpyMock<Method extends keyof ApiClient, Data>(
   const stub: SdkResponse<Data> = { success: true, status: 200, data };
 
   return vi
-    .spyOn(DefaultApiClient.prototype as any, method as any)
+    .spyOn(DefaultApiClient.prototype as ApiClient, method)
     .mockImplementation(async () => stub);
 }

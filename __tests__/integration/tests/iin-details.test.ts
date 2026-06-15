@@ -12,8 +12,9 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { awaitTimes, getApiClientSpyMock } from '../utils';
+import { callNTimes, getApiClientSpyMock } from '../utils';
 import { getConfiguration, getSessionDetails } from '../setup';
+import { OnlinePaymentSdk } from '../../../src';
 import { cardNumber } from '../../__fixtures__/card_number';
 import { iinDetailsResponse } from '../../__fixtures__/iin-details';
 import { paymentContextWithAmount } from '../../__fixtures__/payment-context';
@@ -23,7 +24,6 @@ import {
   IinDetailStatus,
   init,
   InvalidArgumentError,
-  OnlinePaymentSdk,
 } from '../../../src';
 
 describe('session.getIinDetails', () => {
@@ -42,14 +42,17 @@ describe('session.getIinDetails', () => {
     expect(result).toBeInstanceOf(IinDetailsResponse);
     expect(result.status).toBe('SUPPORTED');
     expect(result.paymentProductId).toBe(1);
-    const firstCall = spy.mock.calls.at(0);
-    expect(firstCall).toBeDefined();
 
-    const [path, options] = firstCall!;
-    const requestOptions = options as { body?: string } | undefined;
-    expect(requestOptions?.body).toBeDefined();
+    expect(spy).toHaveBeenCalledTimes(1);
 
-    const parsedBody = JSON.parse(requestOptions!.body!);
+    const [path, options] = spy.mock.calls[0]! as [string, { body?: string }];
+
+    if (!options.body) {
+      throw new Error('Expected IIN details request body.');
+    }
+
+    const parsedBody = JSON.parse(options.body);
+
     expect(path).toBe('/services/getIINdetails');
     expect(parsedBody).toEqual({
       bin: '40000000',
@@ -61,7 +64,7 @@ describe('session.getIinDetails', () => {
 
   it('when called again, should result from cache instead network call', async () => {
     const spy = getApiClientSpyMock('post', { isAllowedInContext: true });
-    await awaitTimes(3, () =>
+    await callNTimes(3, () =>
       session.getIinDetails(cardNumber, paymentContextWithAmount)
     );
     expect(spy).toHaveBeenCalledOnce();
@@ -102,5 +105,29 @@ describe('session.getIinDetails', () => {
       )?.data;
       expect(res.status).toBe(IinDetailStatus.NOT_ENOUGH_DIGITS);
     }
+  });
+
+  it('when cardNumber has exactly 6 digits, should send the provided BIN and return IinDetailsResponse', async () => {
+    const spy = getApiClientSpyMock('post', iinDetailsResponse);
+
+    const result = await session.getIinDetails(
+      '123456',
+      paymentContextWithAmount
+    );
+
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    const [, options] = spy.mock.calls[0]! as [string, { body?: string }];
+
+    if (!options.body) {
+      throw new Error('Expected IIN details request body.');
+    }
+
+    const parsedBody = JSON.parse(options.body);
+
+    expect(result).toBeInstanceOf(IinDetailsResponse);
+    expect(parsedBody.bin).toBe('123456');
+
+    spy.mockRestore();
   });
 });

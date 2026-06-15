@@ -12,8 +12,8 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { basePaymentProductJson } from '../../../__fixtures__/base-payment-product-json';
+import { AccountOnFile, BasicPaymentProduct } from '../../../../src';
 import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
-import { BasicPaymentProduct } from '../../../../src';
 
 let basicPaymentProduct: BasicPaymentProduct;
 beforeEach(() => {
@@ -66,9 +66,16 @@ describe('getAccountsOnFile', () => {
   it('should return list of accounts with length: 1', () => {
     const accountsOnFile = basicPaymentProduct.accountsOnFile;
 
-    expect(accountsOnFile.length).toBe(1);
-    expect(accountsOnFile[0]!.id).toEqual('1234');
-    expect(accountsOnFile[0]!.paymentProductId).toEqual(1);
+    expect(accountsOnFile).toHaveLength(1);
+
+    const [accountOnFile] = accountsOnFile;
+
+    if (!accountOnFile) {
+      throw new Error('Expected one account on file.');
+    }
+
+    expect(accountOnFile.id).toEqual('1234');
+    expect(accountOnFile.paymentProductId).toEqual(1);
   });
 });
 
@@ -85,5 +92,37 @@ describe('getAccountOnFile', () => {
     const accountOnFile = basicPaymentProduct.getAccountOnFile('0');
 
     expect(accountOnFile).toBe(undefined);
+  });
+});
+
+describe('constructor', () => {
+  it('filters accounts on file to only those matching the product id', () => {
+    const matchingAof = new AccountOnFile('1', 1);
+    const nonMatchingAof = new AccountOnFile('2', 2);
+    const product = new BasicPaymentProduct(
+      1,
+      'card',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [matchingAof, nonMatchingAof]
+    );
+
+    expect(product.accountsOnFile).toHaveLength(1);
+
+    const [accountOnFile] = product.accountsOnFile;
+
+    if (!accountOnFile) {
+      throw new Error('Expected one matching account on file.');
+    }
+
+    expect(accountOnFile.id).toBe('1');
   });
 });

@@ -13,7 +13,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
-  awaitTimes,
+  callNTimes,
   createSdkClient,
   getApiClientSpyMock,
   getEnvVar,
@@ -35,21 +35,11 @@ import { getConfiguration } from '../setup';
 describe.skip('session.getCurrencyConversionQuote', () => {
   let session: OnlinePaymentSdk;
 
-  const partialCreditCardNumberWithCurrencyConversion = getEnvVar(
-    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const cardWithCurrencyConversionToken = getEnvVar(
-    'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const partialCreditCardNumberWithNoCurrencyConversion = getEnvVar(
-    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const productIdWithCurrencyConversion = +getEnvVar(
-    'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
-  );
-  const productIdWithoutCurrencyConversion = +getEnvVar(
-    'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-  );
+  let partialCreditCardNumberWithCurrencyConversion: string;
+  let cardWithCurrencyConversionToken: string;
+  let partialCreditCardNumberWithNoCurrencyConversion: string;
+  let productIdWithCurrencyConversion: number;
+  let productIdWithoutCurrencyConversion: number;
 
   const amountOfMoney: AmountOfMoney = {
     amount: 1000,
@@ -57,6 +47,22 @@ describe.skip('session.getCurrencyConversionQuote', () => {
   };
 
   beforeAll(async () => {
+    partialCreditCardNumberWithCurrencyConversion = getEnvVar(
+      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    cardWithCurrencyConversionToken = getEnvVar(
+      'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    partialCreditCardNumberWithNoCurrencyConversion = getEnvVar(
+      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    productIdWithCurrencyConversion = +getEnvVar(
+      'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
+    );
+    productIdWithoutCurrencyConversion = +getEnvVar(
+      'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+    );
+
     const client = createSdkClient({
       apiKeyId: getEnvVar('VITE_MERCHANT_KEY_SURCHARGE_CURRENCY_CONVERSION'),
       secretApiKey: getEnvVar(
@@ -169,7 +175,7 @@ describe.skip('session.getCurrencyConversionQuote', () => {
       currencyCode: 'EUR',
     };
     const spy = getApiClientSpyMock('post', { withCurrencyConversion });
-    await awaitTimes(3, () =>
+    await callNTimes(3, () =>
       session.getCurrencyConversionQuote(
         amountOfMoneySpyTest,
         cardWithCurrencyConversionToken

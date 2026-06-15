@@ -26,7 +26,6 @@ import {
   InvalidArgumentError,
   PaymentProduct,
   PaymentRequest,
-  ValidationResult,
 } from '../../../../src';
 import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
 import { Encryptor } from '../../../../src/infrastructure/encryption/Encryptor';
@@ -53,7 +52,7 @@ describe('getField', () => {
     expect(field.getId()).toBe('expiryDate');
   });
 
-  it('should return field for existing field `expiryDate`', () => {
+  it('should throw error for non-existing field `someField`', () => {
     expect(() => paymentRequest.getField('someField')).toThrowError();
   });
 });
@@ -114,6 +113,14 @@ describe('setAccountOnFile and getAccountOnFile', () => {
     expect(paymentRequest.getAccountOnFile()).not.toBe(undefined);
     expect(paymentRequest.getAccountOnFile()?.id).toBe('1234');
   });
+
+  it('should do nothing when called with undefined', () => {
+    paymentRequest.setAccountOnFile(accountOnFile);
+    paymentRequest.setAccountOnFile(undefined);
+
+    // Early return: accountOnFile remains set
+    expect(paymentRequest.getAccountOnFile()?.id).toBe('1234');
+  });
 });
 
 describe('setTokenize and getTokenize', () => {
@@ -123,6 +130,13 @@ describe('setTokenize and getTokenize', () => {
     paymentRequest.setTokenize(true);
 
     expect(paymentRequest.getTokenize()).toBe(true);
+  });
+
+  it('should reset tokenize back to false', () => {
+    paymentRequest.setTokenize(true);
+    paymentRequest.setTokenize(false);
+
+    expect(paymentRequest.getTokenize()).toBe(false);
   });
 });
 
@@ -311,15 +325,8 @@ describe('encrypt', () => {
   });
 
   it('should throw error if mandatory data not set', async () => {
-    try {
-      await service.encryptPaymentRequest(paymentRequest);
-    } catch (error: unknown) {
-      expect(error).toBeInstanceOf(InvalidArgumentError);
-      expect(
-        ((error as InvalidArgumentError).metadata as {
-          data: ValidationResult;
-        })!.data
-      ).toBeInstanceOf(ValidationResult);
-    }
+    await expect(
+      service.encryptPaymentRequest(paymentRequest)
+    ).rejects.toBeInstanceOf(InvalidArgumentError);
   });
 });

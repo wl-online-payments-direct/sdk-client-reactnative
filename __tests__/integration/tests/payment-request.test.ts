@@ -12,14 +12,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getConfiguration, getSessionDetails } from '../setup';
+import { OnlinePaymentSdk, PaymentProduct } from '../../../src';
 import { cardPaymentProductJson } from '../../__fixtures__/payment-product-json';
-import {
-  CreditCardTokenRequest,
-  init,
-  OnlinePaymentSdk,
-  PaymentProduct,
-  PaymentRequest,
-} from '../../../src';
+import { CreditCardTokenRequest, init, PaymentRequest } from '../../../src';
 import { accountOnFileJson } from '../../__fixtures__/account-on-file-json';
 import {
   createPaymentFromSdk,
@@ -31,7 +26,7 @@ import {
 import { publicKeyResponse } from '../../__fixtures__/public-key-response';
 import { cardNumber } from '../../__fixtures__/card_number';
 import { paymentContext } from '../../__fixtures__/payment-context';
-import { DefaultPaymentProductFactory } from '../../../src/infrastructure/factories/DefaultPaymentProductFactory';
+import { JOSEEncryptor } from '../../../src/infrastructure/encryption/JOSEEncryptor';
 
 const SDK_MERCHANT_ID = getEnvVar('VITE_ONLINEPAYMENTS_SDK_MERCHANT_ID');
 
@@ -40,20 +35,44 @@ describe('session.createPaymentRequest', () => {
   let paymentProduct: PaymentProduct;
   let tokenRequest: CreditCardTokenRequest;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     session = init(getSessionDetails(), getConfiguration());
-    paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
+    const productSpy = getApiClientSpyMock(
+      'getWithContext',
       cardPaymentProductJson
     );
+    paymentProduct = await session.getPaymentProduct(1, paymentContext);
+    productSpy.mockRestore();
     tokenRequest = new CreditCardTokenRequest();
   });
+
+  const createPaymentAndExpectSuccessfulResponse = async (
+    encryptedCustomerInput: string | undefined
+  ) => {
+    expect(encryptedCustomerInput).toBeDefined();
+
+    if (!encryptedCustomerInput) {
+      throw new Error('Expected encrypted customer input.');
+    }
+
+    const result = await createPaymentFromSdk(SDK_MERCHANT_ID, {
+      encryptedCustomerInput,
+    });
+
+    expect(result).toBeDefined();
+    expect(result.creationOutput).toBeDefined();
+    expect(result.merchantAction).toBeDefined();
+    expect(result.payment?.id).toBeDefined();
+
+    return result;
+  };
 
   it('should encrypt payment request`', async () => {
     const request = new PaymentRequest(paymentProduct);
 
     request.getField('cardholderName').setValue('Test cardholder name');
     request.getField('cvv').setValue('123');
-    request.getField('expiryDate').setValue('12/2026');
+    request.getField('expiryDate').setValue('12/2030');
     request.getField('cardNumber').setValue('4242424242424242');
 
     const response = await session.encryptPaymentRequest(request);
@@ -68,7 +87,7 @@ describe('session.createPaymentRequest', () => {
 
     request.getField('cardholderName').setValue('Test cardholder name');
     request.getField('cvv').setValue('123');
-    request.getField('expiryDate').setValue('12/2026');
+    request.getField('expiryDate').setValue('12/2030');
 
     // noinspection ES6RedundantAwait It is not redundant.
     await expect(session.encryptPaymentRequest(request)).rejects.toThrow(
@@ -80,35 +99,74 @@ describe('session.createPaymentRequest', () => {
   });
 
   it('if account on file present cannot change mandatory field`', async () => {
-    const accountOnFile =
-      new DefaultPaymentProductFactory().createAccountOnFile(accountOnFileJson);
-    const request = new PaymentRequest(paymentProduct, accountOnFile);
+    // Use a fresh session to avoid cache hit from beforeEach (same product ID + context)
+    const newSession = init(getSessionDetails(), getConfiguration());
+    const productWithAofSpy = getApiClientSpyMock('getWithContext', {
+      ...cardPaymentProductJson,
+      accountsOnFile: [accountOnFileJson],
+    });
+    const productWithAof = await newSession.getPaymentProduct(
+      1,
+      paymentContext
+    );
+    productWithAofSpy.mockRestore();
+
+    const [accountOnFile] = productWithAof.accountsOnFile;
+    if (!accountOnFile) throw new Error('Expected account on file');
+
+    const request = new PaymentRequest(productWithAof, accountOnFile);
 
     expect(() =>
       request.getField('cardNumber').setValue('4222422242224222')
     ).toThrow('Cannot write "READ_ONLY" field: cardNumber');
   });
 
-  it('can create payment with valid request`', async () => {
+  it('encrypted payload should include tokenize flag when setTokenize(true) is called', async () => {
+    const publicKeySpy = getApiClientSpyMock('get', publicKeyResponse);
+    const encryptSpy = vi
+      .spyOn(JOSEEncryptor, 'encrypt')
+      .mockReturnValue('mock.jwe.token.value.here');
+
+    const request = new PaymentRequest(paymentProduct);
+    request.getField('cardNumber').setValue('4242424242424242');
+    request.getField('cardholderName').setValue('Test cardholder name');
+    request.getField('cvv').setValue('123');
+    request.getField('expiryDate').setValue('12/2030');
+    request.setTokenize(true);
+
+    await session.encryptPaymentRequest(request);
+
+    expect(encryptSpy).toHaveBeenCalledOnce();
+
+    const encryptCall = encryptSpy.mock.calls[0];
+
+    if (!encryptCall) {
+      throw new Error('Expected JOSE encrypt to have been called.');
+    }
+
+    const [capturedPayload] = encryptCall;
+
+    expect(capturedPayload).toMatchObject({
+      tokenize: true,
+    });
+
+    publicKeySpy.mockRestore();
+    encryptSpy.mockRestore();
+  });
+
+  it('can create payment with valid request', async () => {
     const request = new PaymentRequest(paymentProduct);
 
     request.getField('cardNumber').setValue(cardNumber);
     request.getField('cardholderName').setValue('Test cardholder name');
     request.getField('cvv').setValue('123');
-    request.getField('expiryDate').setValue('12/2026');
+    request.getField('expiryDate').setValue('12/2030');
 
     const encryptedData = await session.encryptPaymentRequest(request);
 
-    expect(encryptedData.encryptedCustomerInput).toBeDefined();
-
-    const result = await createPaymentFromSdk(SDK_MERCHANT_ID, {
-      encryptedCustomerInput: encryptedData.encryptedCustomerInput,
-    });
-
-    expect(result).toBeDefined();
-    expect(result.creationOutput).toBeDefined();
-    expect(result.merchantAction).toBeDefined();
-    expect(result.payment?.id).toBeDefined();
+    await createPaymentAndExpectSuccessfulResponse(
+      encryptedData.encryptedCustomerInput
+    );
   });
 
   it('can create payment with valid AOF', async () => {
@@ -139,24 +197,24 @@ describe('session.createPaymentRequest', () => {
     expect(sessionDetails).toBeDefined();
     const newSession = init(sessionDetails);
 
-    const fetchedPaymentProduct = await newSession.getPaymentProduct(
+    const paymentProductWithAof = await newSession.getPaymentProduct(
       1,
       paymentContext
     );
 
-    expect(fetchedPaymentProduct.accountsOnFile.length).toBe(1);
+    expect(paymentProductWithAof.accountsOnFile).toHaveLength(1);
 
-    const firstAccountOnFile = fetchedPaymentProduct.accountsOnFile.at(0);
-    expect(firstAccountOnFile).toBeDefined();
+    const [accountOnFile] = paymentProductWithAof.accountsOnFile;
 
-    expect(firstAccountOnFile!.getValue('cardholderName')).toBe('Darwin Núñez');
-    expect(firstAccountOnFile!.getValue('expiryDate')).toBe('1230');
-    expect(firstAccountOnFile!.getValue('cardNumber')).toBe('456735XXXXXX7977');
+    if (!accountOnFile) {
+      throw new Error('Expected one account on file.');
+    }
 
-    const request = new PaymentRequest(
-      fetchedPaymentProduct,
-      firstAccountOnFile!
-    );
+    expect(accountOnFile.getValue('cardholderName')).toBe('Darwin Núñez');
+    expect(accountOnFile.getValue('expiryDate')).toBe('1230');
+    expect(accountOnFile.getValue('cardNumber')).toBe('456735XXXXXX7977');
+
+    const request = new PaymentRequest(paymentProductWithAof, accountOnFile);
     request.setValue('cardholderName', 'Darwin Núñez');
     request.setValue('cardNumber', '4567350000427977');
     request.setValue('expiryDate', '12/26');
@@ -169,15 +227,8 @@ describe('session.createPaymentRequest', () => {
 
     const encryptedData = await newSession.encryptPaymentRequest(request);
 
-    expect(encryptedData.encryptedCustomerInput).toBeDefined();
-
-    const result = await createPaymentFromSdk(SDK_MERCHANT_ID, {
-      encryptedCustomerInput: encryptedData.encryptedCustomerInput,
-    });
-
-    expect(result).toBeDefined();
-    expect(result.creationOutput).toBeDefined();
-    expect(result.merchantAction).toBeDefined();
-    expect(result.payment?.id).toBeDefined();
+    await createPaymentAndExpectSuccessfulResponse(
+      encryptedData.encryptedCustomerInput
+    );
   });
 });

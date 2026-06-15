@@ -10,18 +10,20 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OnlinePaymentSdk } from '../../../src';
 import type { ServiceFactory } from '../../../src/infrastructure/interfaces/ServiceFactory';
 import type { EncryptionService } from '../../../src/services/interfaces/EncryptionService';
 import type { PaymentProductService } from '../../../src/services/interfaces/PaymentProductService';
 import type { ClientService } from '../../../src/services/interfaces/ClientService';
 import {
   init,
-  OnlinePaymentSdk,
   type PaymentContext,
+  type PaymentContextWithAmount,
   type SdkConfiguration,
   type SessionData,
 } from '../../../src';
+import * as SessionDataNormalizerModule from '../../../src/facade/SessionDataNormalizer';
 
 describe('OnlinePaymentSdk', () => {
   let sessionData: SessionData;
@@ -29,6 +31,32 @@ describe('OnlinePaymentSdk', () => {
   let mockPaymentProductService: PaymentProductService;
   let mockClientService: ClientService;
   let mockServiceFactory: ServiceFactory;
+  let sdk: OnlinePaymentSdk;
+
+  const createPaymentContext = (): PaymentContext => ({
+    countryCode: 'NL',
+    amountOfMoney: {
+      amount: 1000,
+      currencyCode: 'EUR',
+    },
+  });
+
+  const createPaymentContextWithAmount = (): PaymentContextWithAmount => ({
+    countryCode: 'NL',
+    amountOfMoney: {
+      amount: 1000,
+      currencyCode: 'EUR',
+    },
+  });
+
+  const createAmountOfMoney = () => ({
+    amount: 1000,
+    currencyCode: 'EUR',
+  });
+
+  const createCard = () => ({
+    partialCreditCardNumber: '424242',
+  });
 
   beforeEach(() => {
     sessionData = {
@@ -63,269 +91,337 @@ describe('OnlinePaymentSdk', () => {
         .mockReturnValue(mockPaymentProductService),
       getClientService: vi.fn().mockReturnValue(mockClientService),
     } as unknown as ServiceFactory;
+
+    sdk = new OnlinePaymentSdk(sessionData, undefined, mockServiceFactory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should create instance with session data', () => {
-    const sdk = new OnlinePaymentSdk(
-      sessionData,
-      undefined,
-      mockServiceFactory
-    );
     expect(sdk).toBeInstanceOf(OnlinePaymentSdk);
   });
 
   it('should create instance when initializing SDK', () => {
-    const sdk = init(sessionData);
-    expect(sdk).toBeInstanceOf(OnlinePaymentSdk);
+    const initializedSdk = init(sessionData);
+
+    expect(initializedSdk).toBeInstanceOf(OnlinePaymentSdk);
   });
 
   it('should create instance with session data and configuration', () => {
     const config: SdkConfiguration = {
       appIdentifier: 'TestApp',
     };
-    const sdk = new OnlinePaymentSdk(sessionData, config, mockServiceFactory);
-    expect(sdk).toBeInstanceOf(OnlinePaymentSdk);
+
+    const configuredSdk = new OnlinePaymentSdk(
+      sessionData,
+      config,
+      mockServiceFactory
+    );
+
+    expect(configuredSdk).toBeInstanceOf(OnlinePaymentSdk);
   });
 
-  describe('getBasicPaymentProducts', () => {
-    it('should delegate to payment product service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const paymentContext: PaymentContext = {
-        countryCode: 'NL',
-        amountOfMoney: {
-          amount: 1000,
-          currencyCode: 'EUR',
+  it('should use DefaultServiceFactory when no factory is provided', () => {
+    // This test verifies OnlinePaymentSdk creates instance without explicit factory.
+    // Note: DefaultServiceFactory construction IS exercised (not mocked), but services
+    // are isolated from external dependencies via default mocks (TestApiClient rejects by default).
+    const sdkInstance = new OnlinePaymentSdk(sessionData);
+
+    expect(sdkInstance).toBeInstanceOf(OnlinePaymentSdk);
+  });
+
+  it('should normalize session data before creating default factory', () => {
+    const normalizeSpy = vi.spyOn(SessionDataNormalizerModule, 'normalize');
+
+    const normalizedSdk = new OnlinePaymentSdk(sessionData);
+
+    expect(normalizedSdk).toBeInstanceOf(OnlinePaymentSdk);
+    expect(normalizeSpy).toHaveBeenCalledWith(sessionData);
+  });
+
+  interface AsyncMock {
+    mockResolvedValue(value: unknown): void;
+    mockRejectedValue(error: unknown): void;
+  }
+
+  const toMock = (fn: unknown): AsyncMock => fn as unknown as AsyncMock;
+
+  describe('service delegation — delegates and returns value', () => {
+    it.each([
+      {
+        method: 'getBasicPaymentProducts',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
+          const value = {
+            paymentProducts: [],
+            accountsOnFile: [],
+          };
+
+          return {
+            call: () => sdk.getBasicPaymentProducts(paymentContext),
+            getMock: () =>
+              toMock(mockPaymentProductService.getBasicPaymentProducts),
+            expectedArguments: [paymentContext],
+            value,
+          };
         },
-      };
+      },
+      {
+        method: 'getPaymentProduct',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
+          const value = {} as unknown;
 
-      const mockResponse = {
-        paymentProducts: [],
-        accountsOnFile: [],
-      };
-      vi.mocked(
-        mockPaymentProductService.getBasicPaymentProducts
-      ).mockResolvedValue(mockResponse);
-
-      const result = await sdk.getBasicPaymentProducts(paymentContext);
-
-      expect(
-        mockPaymentProductService.getBasicPaymentProducts
-      ).toHaveBeenCalledWith(paymentContext);
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('getPaymentProduct', () => {
-    it('should delegate to payment product service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const paymentContext: PaymentContext = {
-        countryCode: 'NL',
-        amountOfMoney: {
-          amount: 1000,
-          currencyCode: 'EUR',
+          return {
+            call: () => sdk.getPaymentProduct(1, paymentContext),
+            getMock: () => toMock(mockPaymentProductService.getPaymentProduct),
+            expectedArguments: [1, paymentContext],
+            value,
+          };
         },
-      };
+      },
+      {
+        method: 'getPaymentProductNetworks',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
+          const value = { networks: [] } as unknown;
 
-      const mockProduct = {} as any;
-      vi.mocked(mockPaymentProductService.getPaymentProduct).mockResolvedValue(
-        mockProduct
-      );
-
-      const result = await sdk.getPaymentProduct(1, paymentContext);
-
-      expect(mockPaymentProductService.getPaymentProduct).toHaveBeenCalledWith(
-        1,
-        paymentContext
-      );
-      expect(result).toEqual(mockProduct);
-    });
-  });
-
-  describe('getPaymentProductNetworks', () => {
-    it('should delegate to payment product service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const paymentContext: PaymentContext = {
-        countryCode: 'NL',
-        amountOfMoney: {
-          amount: 1000,
-          currencyCode: 'EUR',
+          return {
+            call: () => sdk.getPaymentProductNetworks(1, paymentContext),
+            getMock: () =>
+              toMock(mockPaymentProductService.getPaymentProductNetworks),
+            expectedArguments: [1, paymentContext],
+            value,
+          };
         },
-      };
+      },
+      {
+        method: 'getSurchargeCalculation',
+        arrange: () => {
+          const amountOfMoney = createAmountOfMoney();
+          const card = createCard();
+          const value = {} as unknown;
 
-      const mockNetworks = { networks: [] } as any;
-      vi.mocked(
-        mockPaymentProductService.getPaymentProductNetworks
-      ).mockResolvedValue(mockNetworks);
-
-      const result = await sdk.getPaymentProductNetworks(1, paymentContext);
-
-      expect(
-        mockPaymentProductService.getPaymentProductNetworks
-      ).toHaveBeenCalledWith(1, paymentContext);
-      expect(result).toEqual(mockNetworks);
-    });
-  });
-
-  describe('getSurchargeCalculation', () => {
-    it('should delegate to client service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const amountOfMoney = { amount: 1000, currencyCode: 'EUR' };
-      const card = { partialCreditCardNumber: '424242' };
-
-      const mockResponse = {} as any;
-      vi.mocked(mockClientService.getSurchargeCalculation).mockResolvedValue(
-        mockResponse
-      );
-
-      const result = await sdk.getSurchargeCalculation(amountOfMoney, card);
-
-      expect(mockClientService.getSurchargeCalculation).toHaveBeenCalledWith(
-        amountOfMoney,
-        card
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('getCurrencyConversionQuote', () => {
-    it('should delegate to client service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const amountOfMoney = { amount: 1000, currencyCode: 'EUR' };
-      const card = { partialCreditCardNumber: '424242' };
-
-      const mockResponse = {} as any;
-      vi.mocked(mockClientService.getCurrencyConversionQuote).mockResolvedValue(
-        mockResponse
-      );
-
-      const result = await sdk.getCurrencyConversionQuote(amountOfMoney, card);
-
-      expect(mockClientService.getCurrencyConversionQuote).toHaveBeenCalledWith(
-        amountOfMoney,
-        card
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('getIinDetails', () => {
-    it('should delegate to client service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const partialCardNumber = '424242';
-      const paymentContext = {
-        countryCode: 'NL',
-        amountOfMoney: {
-          amount: 1000,
-          currencyCode: 'EUR',
+          return {
+            call: () => sdk.getSurchargeCalculation(amountOfMoney, card),
+            getMock: () => toMock(mockClientService.getSurchargeCalculation),
+            expectedArguments: [amountOfMoney, card],
+            value,
+          };
         },
-      };
+      },
+      {
+        method: 'getCurrencyConversionQuote',
+        arrange: () => {
+          const amountOfMoney = createAmountOfMoney();
+          const card = createCard();
+          const value = {} as unknown;
 
-      const mockResponse = {} as any;
-      vi.mocked(mockClientService.getIinDetails).mockResolvedValue(
-        mockResponse
-      );
+          return {
+            call: () => sdk.getCurrencyConversionQuote(amountOfMoney, card),
+            getMock: () => toMock(mockClientService.getCurrencyConversionQuote),
+            expectedArguments: [amountOfMoney, card],
+            value,
+          };
+        },
+      },
+      {
+        method: 'getIinDetails',
+        arrange: () => {
+          const partialCreditCardNumber = '424242';
+          const paymentContext = createPaymentContextWithAmount();
+          const value = {} as unknown;
 
-      const result = await sdk.getIinDetails(partialCardNumber, paymentContext);
+          return {
+            call: () =>
+              sdk.getIinDetails(partialCreditCardNumber, paymentContext),
+            getMock: () => toMock(mockClientService.getIinDetails),
+            expectedArguments: [partialCreditCardNumber, paymentContext],
+            value,
+          };
+        },
+      },
+      {
+        method: 'getPublicKey',
+        arrange: () => {
+          const value = {} as unknown;
 
-      expect(mockClientService.getIinDetails).toHaveBeenCalledWith(
-        partialCardNumber,
-        paymentContext
-      );
-      expect(result).toEqual(mockResponse);
+          return {
+            call: () => sdk.getPublicKey(),
+            getMock: () => toMock(mockEncryptionService.getPublicKey),
+            expectedArguments: [],
+            value,
+          };
+        },
+      },
+      {
+        method: 'encryptPaymentRequest',
+        arrange: () => {
+          const paymentRequest = {} as Parameters<
+            OnlinePaymentSdk['encryptPaymentRequest']
+          >[0];
+          const value = {
+            encryptedCustomerInput: 'enc',
+            encodedClientMetaInfo: 'meta',
+          };
+
+          return {
+            call: () => sdk.encryptPaymentRequest(paymentRequest),
+            getMock: () => toMock(mockEncryptionService.encryptPaymentRequest),
+            expectedArguments: [paymentRequest],
+            value,
+          };
+        },
+      },
+      {
+        method: 'encryptTokenRequest',
+        arrange: () => {
+          const tokenRequest = {} as Parameters<
+            OnlinePaymentSdk['encryptTokenRequest']
+          >[0];
+          const value = {
+            encryptedCustomerInput: 'enc',
+            encodedClientMetaInfo: 'meta',
+          };
+
+          return {
+            call: () => sdk.encryptTokenRequest(tokenRequest),
+            getMock: () => toMock(mockEncryptionService.encryptTokenRequest),
+            expectedArguments: [tokenRequest],
+            value,
+          };
+        },
+      },
+    ])('$method', async ({ arrange }) => {
+      const { call, getMock, expectedArguments, value } = arrange();
+      const serviceMethod = getMock();
+
+      serviceMethod.mockResolvedValue(value);
+
+      const result = await call();
+
+      expect(serviceMethod).toHaveBeenCalledWith(...expectedArguments);
+      expect(result).toEqual(value);
     });
   });
 
-  describe('getPublicKey', () => {
-    it('should delegate to encryption service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
+  describe('service delegation — propagates rejection', () => {
+    it.each([
+      {
+        method: 'getBasicPaymentProducts',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
 
-      const mockKey = {} as any;
-      vi.mocked(mockEncryptionService.getPublicKey).mockResolvedValue(mockKey);
+          return {
+            call: () => sdk.getBasicPaymentProducts(paymentContext),
+            getMock: () =>
+              toMock(mockPaymentProductService.getBasicPaymentProducts),
+          };
+        },
+      },
+      {
+        method: 'getPaymentProduct',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
 
-      const result = await sdk.getPublicKey();
+          return {
+            call: () => sdk.getPaymentProduct(1, paymentContext),
+            getMock: () => toMock(mockPaymentProductService.getPaymentProduct),
+          };
+        },
+      },
+      {
+        method: 'getPaymentProductNetworks',
+        arrange: () => {
+          const paymentContext = createPaymentContext();
 
-      expect(mockEncryptionService.getPublicKey).toHaveBeenCalled();
-      expect(result).toEqual(mockKey);
-    });
-  });
+          return {
+            call: () => sdk.getPaymentProductNetworks(1, paymentContext),
+            getMock: () =>
+              toMock(mockPaymentProductService.getPaymentProductNetworks),
+          };
+        },
+      },
+      {
+        method: 'getSurchargeCalculation',
+        arrange: () => {
+          const amountOfMoney = createAmountOfMoney();
+          const card = createCard();
 
-  describe('encryptPaymentRequest', () => {
-    it('should delegate to encryption service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const mockRequest = {} as any;
-      const mockEncrypted = {
-        encryptedCustomerInput: 'encrypted',
-        encodedClientMetaInfo: 'meta',
-      };
+          return {
+            call: () => sdk.getSurchargeCalculation(amountOfMoney, card),
+            getMock: () => toMock(mockClientService.getSurchargeCalculation),
+          };
+        },
+      },
+      {
+        method: 'getCurrencyConversionQuote',
+        arrange: () => {
+          const amountOfMoney = createAmountOfMoney();
+          const card = createCard();
 
-      vi.mocked(mockEncryptionService.encryptPaymentRequest).mockResolvedValue(
-        mockEncrypted
-      );
+          return {
+            call: () => sdk.getCurrencyConversionQuote(amountOfMoney, card),
+            getMock: () => toMock(mockClientService.getCurrencyConversionQuote),
+          };
+        },
+      },
+      {
+        method: 'getIinDetails',
+        arrange: () => {
+          const partialCreditCardNumber = '424242';
+          const paymentContext = createPaymentContextWithAmount();
 
-      const result = await sdk.encryptPaymentRequest(mockRequest);
+          return {
+            call: () =>
+              sdk.getIinDetails(partialCreditCardNumber, paymentContext),
+            getMock: () => toMock(mockClientService.getIinDetails),
+          };
+        },
+      },
+      {
+        method: 'getPublicKey',
+        arrange: () => ({
+          call: () => sdk.getPublicKey(),
+          getMock: () => toMock(mockEncryptionService.getPublicKey),
+        }),
+      },
+      {
+        method: 'encryptPaymentRequest',
+        arrange: () => {
+          const paymentRequest = {} as Parameters<
+            OnlinePaymentSdk['encryptPaymentRequest']
+          >[0];
 
-      expect(mockEncryptionService.encryptPaymentRequest).toHaveBeenCalledWith(
-        mockRequest
-      );
-      expect(result).toEqual(mockEncrypted);
-    });
-  });
+          return {
+            call: () => sdk.encryptPaymentRequest(paymentRequest),
+            getMock: () => toMock(mockEncryptionService.encryptPaymentRequest),
+          };
+        },
+      },
+      {
+        method: 'encryptTokenRequest',
+        arrange: () => {
+          const tokenRequest = {} as Parameters<
+            OnlinePaymentSdk['encryptTokenRequest']
+          >[0];
 
-  describe('encryptTokenRequest', () => {
-    it('should delegate to encryption service', async () => {
-      const sdk = new OnlinePaymentSdk(
-        sessionData,
-        undefined,
-        mockServiceFactory
-      );
-      const mockRequest = {} as any;
-      const mockEncrypted = {
-        encryptedCustomerInput: 'encrypted',
-        encodedClientMetaInfo: 'meta',
-      };
+          return {
+            call: () => sdk.encryptTokenRequest(tokenRequest),
+            getMock: () => toMock(mockEncryptionService.encryptTokenRequest),
+          };
+        },
+      },
+    ])('$method', async ({ arrange }) => {
+      const { call, getMock } = arrange();
+      const error = new Error('service error');
+      const serviceMethod = getMock();
 
-      vi.mocked(mockEncryptionService.encryptTokenRequest).mockResolvedValue(
-        mockEncrypted
-      );
+      serviceMethod.mockRejectedValue(error);
 
-      const result = await sdk.encryptTokenRequest(mockRequest);
-
-      expect(mockEncryptionService.encryptTokenRequest).toHaveBeenCalledWith(
-        mockRequest
-      );
-      expect(result).toEqual(mockEncrypted);
+      await expect(call()).rejects.toBe(error);
     });
   });
 });

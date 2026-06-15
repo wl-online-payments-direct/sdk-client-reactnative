@@ -74,6 +74,12 @@ describe('JOSEEncryptor.encrypt (SDK contract)', () => {
   });
 
   it('keeps deterministic header/iv/cipher/tag when random bytes are mocked', () => {
+    // Security rationale: This test verifies that JWE encryption is deterministic
+    // given fixed random inputs (for CEK and IV). The only non-deterministic part
+    // should be the encrypted CEK (ek) because RSA-OAEP uses fresh randomness per encryption.
+    // Everything else — IV, ciphertext, authentication tag — is deterministic once
+    // the random bytes are fixed. This ensures the encryption implementation is correct
+    // and not introducing unexpected entropy that could weaken security.
     vi.spyOn(forgeRandom, 'getBytesSync').mockImplementation((len: number) =>
       'a'.repeat(len)
     );
@@ -95,11 +101,82 @@ describe('JOSEEncryptor.encrypt (SDK contract)', () => {
     expect(iv1).toBe(iv2);
     expect(c1).toBe(c2);
     expect(t1).toBe(t2);
+    // ek must differ even with fixed random bytes because RSA-OAEP pads with its own entropy
     expect(ek1).not.toBe(ek2);
   });
 
   it('throws when public key is malformed', () => {
     const malformed = new PublicKeyResponse('kid', 'not-base64-or-der');
-    expect(() => JOSEEncryptor.encrypt({ a: 1 }, malformed)).toThrow();
+    expect(() => JOSEEncryptor.encrypt({ a: 1 }, malformed)).toThrow(
+      /certificate|key|PEM|DER|parse/i
+    );
+  });
+
+  it('produces unique IVs on each call (freshness)', () => {
+    // This test verifies semantic security: each encryption must use a fresh IV
+    // to ensure identical plaintexts produce different ciphertexts (IND-CPA security).
+    // If IVs were reused, an attacker could detect duplicate card numbers.
+    const payload = {
+      clientSessionId: 's',
+      nonce: 'n',
+      paymentProductId: 1,
+      paymentValues: [],
+    };
+
+    const first = JOSEEncryptor.encrypt(payload, publicKeyResponse);
+    const second = JOSEEncryptor.encrypt(payload, publicKeyResponse);
+
+    // IV is the third JWE segment (base64url-encoded 16-byte value → 22 chars)
+    const iv1 = first.split('.')[2]!;
+    const iv2 = second.split('.')[2]!;
+
+    // IV must differ between calls to ensure semantic security
+    expect(iv1).not.toBe(iv2);
+  });
+
+  it('IV segment decodes to exactly 16 bytes', () => {
+    const payload = {
+      clientSessionId: 's',
+      nonce: 'n',
+      paymentProductId: 1,
+      paymentValues: [],
+    };
+
+    const token = JOSEEncryptor.encrypt(payload, publicKeyResponse);
+    const ivSegment = token.split('.')[2]!;
+
+    // Restore padding and decode
+    const padded =
+      ivSegment.replace(/-/g, '+').replace(/_/g, '/') +
+      '='.repeat((4 - (ivSegment.length % 4)) % 4);
+    const ivBytes = Buffer.from(padded, 'base64');
+
+    // IVLENGTH = 128 bits = 16 bytes
+    expect(ivBytes.length).toBe(16);
+  });
+
+  it('uses CEK of exactly 64 bytes (512 bits) for A256CBC-HS512', () => {
+    // A256CBC-HS512 requires a 512-bit CEK: 256 bits for HMAC-SHA512 + 256 bits for AES-256-CBC.
+    // This test verifies the CEK length matches the JWE spec for this algorithm.
+    const capturedLengths: number[] = [];
+
+    vi.spyOn(forgeRandom, 'getBytesSync').mockImplementation((len: number) => {
+      capturedLengths.push(len);
+      return 'a'.repeat(len);
+    });
+
+    const payload = {
+      clientSessionId: 's',
+      nonce: 'n',
+      paymentProductId: 1,
+      paymentValues: [],
+    };
+
+    JOSEEncryptor.encrypt(payload, publicKeyResponse);
+
+    // First call to getBytesSync is for CEK, second is for IV
+    // CEK should be 64 bytes (512 bits): 32 bytes for HMAC + 32 bytes for AES
+    expect(capturedLengths[0]).toBe(64);
+    expect(capturedLengths[1]).toBe(16); // IV should be 16 bytes
   });
 });

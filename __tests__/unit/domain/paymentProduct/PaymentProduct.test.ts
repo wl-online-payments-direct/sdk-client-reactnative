@@ -15,14 +15,14 @@ import { cardPaymentProductJson } from '../../../__fixtures__/payment-product-js
 import { DefaultPaymentProductFactory } from '../../../../src/infrastructure/factories/DefaultPaymentProductFactory';
 import { PaymentProduct } from '../../../../src';
 
-describe('getFields', () => {
-  let paymentProduct: PaymentProduct;
-  beforeEach(() => {
-    paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
-      cardPaymentProductJson
-    );
-  });
+let paymentProduct: PaymentProduct;
+beforeEach(() => {
+  paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
+    cardPaymentProductJson
+  );
+});
 
+describe('getFields', () => {
   it('should return correct length`', () => {
     const fields = paymentProduct.getFields();
     expect(fields).length(4);
@@ -41,19 +41,12 @@ describe('getFields', () => {
 });
 
 describe('getRequiredFields', () => {
-  let paymentProduct: PaymentProduct;
-  beforeEach(() => {
-    paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
-      cardPaymentProductJson
-    );
-  });
-
   it('should return correct length`', () => {
     const fields = paymentProduct.getRequiredFields();
     expect(fields).length(3);
   });
 
-  it('should return correct length`', () => {
+  it('should return correct field IDs`', () => {
     const fields = paymentProduct.getRequiredFields();
     const expectedIds = fields.map((field) => field.id);
     expect(expectedIds).toEqual(['cardNumber', 'expiryDate', 'cvv']);
@@ -61,13 +54,6 @@ describe('getRequiredFields', () => {
 });
 
 describe('getField', () => {
-  let paymentProduct: PaymentProduct;
-  beforeEach(() => {
-    paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
-      cardPaymentProductJson
-    );
-  });
-
   it('should return `cardNumber` field', () => {
     const field = paymentProduct.getField('cardNumber');
     expect(field?.id).not.toBe(undefined);
@@ -99,13 +85,6 @@ describe('getField', () => {
 });
 
 describe('Fluent API methods', () => {
-  let paymentProduct: PaymentProduct;
-  beforeEach(() => {
-    paymentProduct = new DefaultPaymentProductFactory().createPaymentProduct(
-      cardPaymentProductJson
-    );
-  });
-
   it('applyMask on field', () => {
     const maskedString = paymentProduct
       .getField('cardNumber')

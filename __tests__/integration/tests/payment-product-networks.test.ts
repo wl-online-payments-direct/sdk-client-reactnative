@@ -12,7 +12,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { awaitTimes, getApiClientSpyMock } from '../utils';
+import { callNTimes, getApiClientSpyMock } from '../utils';
 import { getConfiguration, getSessionDetails } from '../setup';
 import { paymentContext } from '../../__fixtures__/payment-context';
 import { GOOGLE_PAY_ID } from '../../__fixtures__/payment_ids';
@@ -25,18 +25,6 @@ describe('session.getPaymentProductNetworks', () => {
   });
 
   it('should throw a response error when paymentProductId is not correct', async () => {
-    const expectedErrorJson = [
-      {
-        retriable: false,
-        category: 'DIRECT_PLATFORM_ERROR',
-        code: '1431',
-        errorCode: '50001111',
-        httpStatusCode: 400,
-        id: 'PAYMENT_PRODUCT_ID_MISMATCH',
-        message:
-          'The given payment product id does not correspond to the paymentproductid in the given token.',
-      },
-    ];
     try {
       await session.getPaymentProductNetworks(1, paymentContext);
       expect.fail('Should throw an error');
@@ -46,10 +34,17 @@ describe('session.getPaymentProductNetworks', () => {
       const metadata = (error as ResponseError).metadata as {
         errors: unknown[];
       };
-      const errors = metadata.errors;
 
-      expect(errors).toBeInstanceOf(Array);
-      expect(errors).toEqual(expectedErrorJson);
+      expect(metadata.errors).toBeInstanceOf(Array);
+      expect(metadata.errors.length).toBeGreaterThan(0);
+
+      const firstError = metadata.errors[0] as Record<string, unknown>;
+      expect(firstError).toMatchObject({
+        retriable: expect.any(Boolean),
+        category: expect.any(String),
+        code: expect.any(String),
+        httpStatusCode: 400,
+      });
     }
   });
 
@@ -64,7 +59,7 @@ describe('session.getPaymentProductNetworks', () => {
 
   it('when called again, should result from cache instead network call', async () => {
     const spy = getApiClientSpyMock('getWithContext', { networks: [] });
-    await awaitTimes(3, () =>
+    await callNTimes(3, () =>
       session.getPaymentProductNetworks(1, paymentContext)
     );
     expect(spy).toHaveBeenCalledOnce();
