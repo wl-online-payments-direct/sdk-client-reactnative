@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Do not remove or alter the notices in this preamble.
  *
  * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
@@ -13,24 +13,42 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
-  callNTimes,
+  awaitTimes,
   createSdkClient,
   getApiClientSpyMock,
   getEnvVar,
   getSessionFromSdk,
 } from '../utils';
-import type { AmountOfMoney, PartialCard } from '../../../src';
-import { init, OnlinePaymentSdk, SurchargeResult } from '../../../src';
+import { getSurchargeCalculationFixtures } from '../__fixtures__/surcharge-calculation';
 import { getConfiguration } from '../setup';
+import { init, OnlinePaymentSdk } from '../../../src';
+import type {
+  AmountOfMoney,
+  PartialCard,
+  SurchargeCalculationResponse,
+} from '../../../src';
 
-// @todo: un-skip this test suite, once the merchant has been configured to support surcharge
-describe.skip('session.getSurchargeCalculation', () => {
+// Un-skip this test suite once the test merchant has been configured to support surcharge.
+describe.skip('GetSurchargeCalculation', () => {
   let session: OnlinePaymentSdk;
-  let partialCreditCardNumberWithSurcharge: string;
-  let cardWithSurchargeToken: string;
-  let partialCreditCardNumberWithNoSurcharge: string;
-  let productIdWithSurcharge: string;
-  let productIdWithoutSurcharge: string;
+  let withSurchargeCalculationResponse: SurchargeCalculationResponse;
+  let withNoSurchargeCalculationResponse: SurchargeCalculationResponse;
+
+  const partialCreditCardNumberWithSurcharge = getEnvVar(
+    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
+  );
+  const partialCreditCardNumberWithNoSurcharge = getEnvVar(
+    'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+  );
+  const cardWithSurchargeToken = getEnvVar(
+    'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
+  );
+  const productIdWithSurcharge = +getEnvVar(
+    'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
+  );
+  const productIdWithoutSurcharge = +getEnvVar(
+    'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
+  );
 
   const amountOfMoney: AmountOfMoney = {
     amount: 1000,
@@ -38,21 +56,8 @@ describe.skip('session.getSurchargeCalculation', () => {
   };
 
   beforeAll(async () => {
-    partialCreditCardNumberWithSurcharge = getEnvVar(
-      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION'
-    );
-    cardWithSurchargeToken = getEnvVar(
-      'VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION'
-    );
-    partialCreditCardNumberWithNoSurcharge = getEnvVar(
-      'VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-    );
-    productIdWithSurcharge = getEnvVar(
-      'VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION'
-    );
-    productIdWithoutSurcharge = getEnvVar(
-      'VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION'
-    );
+    ({ withSurchargeCalculationResponse, withNoSurchargeCalculationResponse } =
+      getSurchargeCalculationFixtures());
 
     const client = createSdkClient({
       apiKeyId: getEnvVar('VITE_MERCHANT_KEY_SURCHARGE_CURRENCY_CONVERSION'),
@@ -60,114 +65,95 @@ describe.skip('session.getSurchargeCalculation', () => {
         'VITE_MERCHANT_SECRET_KEY_SURCHARGE_CURRENCY_CONVERSION'
       ),
     });
+
     const sessionDetails = await getSessionFromSdk({
       client,
       merchantId: getEnvVar('VITE_MERCHANT_SURCHARGE_CURRENCY_CONVERSION'),
     });
+
     session = init(sessionDetails, getConfiguration());
   });
 
-  it('success with surcharge with provided card with payment product id', async () => {
+  it('GetSurchargeCalculation Returns surcharge result with card and payment product id', async () => {
     const partialCard: PartialCard = {
       partialCreditCardNumber: partialCreditCardNumberWithSurcharge,
-      paymentProductId: parseInt(productIdWithSurcharge, 10),
+      paymentProductId: productIdWithSurcharge,
     };
+
     const result = await session.getSurchargeCalculation(
       amountOfMoney,
       partialCard
     );
-    expect(result.surcharges).toHaveLength(1);
-    expect(result.surcharges[0]).toMatchObject({
-      paymentProductId: parseInt(productIdWithSurcharge, 10),
-      result: SurchargeResult.OK,
-      netAmount: { amount: 1000, currencyCode: 'EUR' },
-      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-    });
+
+    expect(result).toStrictEqual(withSurchargeCalculationResponse);
   });
 
-  it('success with surcharge with provided card without payment product id', async () => {
+  it('GetSurchargeCalculation Returns surcharge result with card without payment product id', async () => {
     const partialCard: PartialCard = {
       partialCreditCardNumber: partialCreditCardNumberWithSurcharge,
     };
+
     const result = await session.getSurchargeCalculation(
       amountOfMoney,
       partialCard
     );
-    expect(result.surcharges).toHaveLength(1);
-    expect(result.surcharges[0]).toMatchObject({
-      result: SurchargeResult.OK,
-      netAmount: { amount: 1000, currencyCode: 'EUR' },
-      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-    });
+
+    expect(result).toStrictEqual(withSurchargeCalculationResponse);
   });
 
-  it('success with surcharge with provided token', async () => {
+  it('GetSurchargeCalculation Returns surcharge result with token source', async () => {
     const result = await session.getSurchargeCalculation(
       amountOfMoney,
       cardWithSurchargeToken
     );
-    expect(result.surcharges).toHaveLength(1);
-    expect(result.surcharges[0]).toMatchObject({
-      result: SurchargeResult.OK,
-      netAmount: { amount: 1000, currencyCode: 'EUR' },
-      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-    });
+
+    expect(result).toStrictEqual(withSurchargeCalculationResponse);
   });
 
-  it('success with no surcharge with provided card with payment product id', async () => {
+  it('GetSurchargeCalculation Returns no surcharge with card and payment product id', async () => {
     const partialCard: PartialCard = {
       partialCreditCardNumber: partialCreditCardNumberWithNoSurcharge,
-      paymentProductId: parseInt(productIdWithoutSurcharge, 10),
+      paymentProductId: productIdWithoutSurcharge,
     };
+
     const result = await session.getSurchargeCalculation(
       amountOfMoney,
       partialCard
     );
-    expect(result.surcharges).toHaveLength(1);
-    expect(result.surcharges[0]).toMatchObject({
-      paymentProductId: parseInt(productIdWithoutSurcharge, 10),
-      result: SurchargeResult.NO_SURCHARGE,
-      netAmount: { amount: 1000, currencyCode: 'EUR' },
-      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-    });
+
+    expect(result).toStrictEqual(withNoSurchargeCalculationResponse);
   });
 
-  it('success with no surcharge with provided card without payment product id', async () => {
+  it('GetSurchargeCalculation Returns no surcharge with card without payment product id', async () => {
     const partialCard: PartialCard = {
       partialCreditCardNumber: partialCreditCardNumberWithNoSurcharge,
     };
+
     const result = await session.getSurchargeCalculation(
       amountOfMoney,
       partialCard
     );
-    expect(result.surcharges).toHaveLength(1);
-    expect(result.surcharges[0]).toMatchObject({
-      result: SurchargeResult.NO_SURCHARGE,
-      netAmount: { amount: 1000, currencyCode: 'EUR' },
-      surchargeAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-      totalAmount: expect.objectContaining({ currencyCode: 'EUR' }),
-    });
+
+    expect(result).toStrictEqual(withNoSurchargeCalculationResponse);
   });
 
-  it('when called again, should result from cache instead network call', async () => {
-    const amountOfMoneySpyTest: AmountOfMoney = {
+  it('GetSurchargeCalculation returns cached result for repeated request', async () => {
+    const amountOfMoneyForCacheTest: AmountOfMoney = {
       amount: 1100,
       currencyCode: 'EUR',
     };
-    const spy = getApiClientSpyMock('post', {
-      withSurchargeCalculationResponse,
-    });
-    await callNTimes(3, () =>
+
+    const spy = getApiClientSpyMock('post', withSurchargeCalculationResponse);
+
+    await awaitTimes(3, () =>
       session.getSurchargeCalculation(
-        amountOfMoneySpyTest,
+        amountOfMoneyForCacheTest,
         cardWithSurchargeToken
       )
     );
+
     expect(spy).toHaveBeenCalledOnce();
+
     spy.mockRestore();
   });
 });

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Do not remove or alter the notices in this preamble.
  *
  * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
@@ -10,109 +10,201 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { paymentContext } from '../../__fixtures__/payment-context';
-import { callNTimes, getApiClientSpyMock } from '../utils';
-import { getConfiguration, getSessionDetails } from '../setup';
-import { OnlinePaymentSdk, PaymentProduct } from '../../../src';
-import { cardPaymentProductJson } from '../../__fixtures__/payment-product-json';
 import { accountOnFileJson } from '../../__fixtures__/account-on-file-json';
-import { init, ResponseError } from '../../../src';
+import { cardPaymentProductJson } from '../../__fixtures__/payment-product-json';
+import { getConfiguration, getSessionDetails } from '../setup';
+import { callNTimes, getApiClientSpyMock } from '../utils';
+import {
+  type ErrorResponse,
+  init,
+  OnlinePaymentSdk,
+  PaymentProduct,
+  ResponseError,
+} from '../../../src';
 import { SupportedProductsUtil } from '../../../src/infrastructure/utils/SupportedProductsUtil';
 
-describe('session.getPaymentProduct', () => {
+describe('GetPaymentProduct', () => {
   let session: OnlinePaymentSdk;
+
+  const error404: ErrorResponse = {
+    errorId: '48b78d2d-1b35-4f8b-92cb-57cc2638e901',
+    errors: [
+      {
+        errorCode: '1007',
+        propertyName: 'productId',
+        message: 'UNKNOWN_PRODUCT_ID',
+        httpStatusCode: 404,
+      },
+    ],
+  };
 
   beforeEach(() => {
     session = init(getSessionDetails(), getConfiguration());
   });
 
-  it('response success; should be an instance of `paymentProduct`', async () => {
-    const response = await session.getPaymentProduct(
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('GetPaymentProduct returns payment product for valid context', async () => {
+    const paymentProduct = await session.getPaymentProduct(
       cardPaymentProductJson.id,
       paymentContext
     );
-    expect(response).toBeInstanceOf(PaymentProduct);
+
+    expect(paymentProduct).toBeInstanceOf(PaymentProduct);
+    expect(paymentProduct.id).toBe(cardPaymentProductJson.id);
   });
 
-  it('response failed; (invalid data)', async () => {
-    await expect(
-      session.getPaymentProduct(99999, paymentContext)
-    ).rejects.toThrow(ResponseError);
-  });
-
-  it('should throw a correct object, when called with unsupported IDs', async () => {
-    const unsupportedMethodIds = SupportedProductsUtil.sdkUnsupportedProducts;
-
-    for (const id of unsupportedMethodIds) {
-      await expect404Error(id);
-    }
-  });
-
-  it('when called again, should result from cache instead network call', async () => {
+  it('GetPaymentProduct returns cached result for repeated request', async () => {
     const spy = getApiClientSpyMock('getWithContext', cardPaymentProductJson);
+
     await callNTimes(3, () =>
       session.getPaymentProduct(cardPaymentProductJson.id, paymentContext)
     );
+
     expect(spy).toHaveBeenCalledOnce();
-    spy.mockRestore();
   });
 
-  it('response success; should return payment product fields', async () => {
-    const spy = getApiClientSpyMock('getWithContext', cardPaymentProductJson);
-    const response = await session.getPaymentProduct(
+  it('GetPaymentProduct returns product with display hints', async () => {
+    getApiClientSpyMock('getWithContext', cardPaymentProductJson);
+
+    const paymentProduct = await session.getPaymentProduct(
       cardPaymentProductJson.id,
       paymentContext
     );
 
-    expect(response.fields).toHaveLength(cardPaymentProductJson.fields.length);
-    expect(response.fields.map((field) => field.id).sort()).toEqual(
-      cardPaymentProductJson.fields.map((field) => field.id).sort()
+    expect(paymentProduct.label).toBe(
+      cardPaymentProductJson.displayHints.label
     );
-
-    spy.mockRestore();
+    expect(paymentProduct.logo).toBe(cardPaymentProductJson.displayHints.logo);
+    expect(paymentProduct.displayOrder).toBe(
+      cardPaymentProductJson.displayHints.displayOrder
+    );
   });
 
-  it('response success; should return mapped accounts on file', async () => {
-    const productWithAof = {
+  it('GetPaymentProduct returns product with mapped accounts on file', async () => {
+    getApiClientSpyMock('getWithContext', {
       ...cardPaymentProductJson,
       accountsOnFile: [accountOnFileJson],
-    };
-    const spy = getApiClientSpyMock('getWithContext', productWithAof);
-    const response = await session.getPaymentProduct(
+    });
+
+    const paymentProduct = await session.getPaymentProduct(
       cardPaymentProductJson.id,
       paymentContext
     );
+    const accountOnFile = paymentProduct.getAccountOnFile(accountOnFileJson.id);
 
-    expect(response.accountsOnFile).toHaveLength(
-      productWithAof.accountsOnFile.length
-    );
-
-    const [accountOnFile] = response.accountsOnFile;
-
-    if (!accountOnFile) {
-      throw new Error('Expected one account on file.');
-    }
-
-    expect(accountOnFile.id).toBe(accountOnFileJson.id);
-    expect(accountOnFile.paymentProductId).toBe(
-      accountOnFileJson.paymentProductId
-    );
-
-    spy.mockRestore();
+    expect(paymentProduct.accountsOnFile).toHaveLength(1);
+    expect(accountOnFile).toBeDefined();
+    expect(accountOnFile?.id).toBe(accountOnFileJson.id);
+    expect(accountOnFile?.paymentProductId).toBe(cardPaymentProductJson.id);
+    expect(accountOnFile?.getValue('cardNumber')).toBe('9999-9999-9999-9999');
+    expect(accountOnFile?.isWritable('cardNumber')).toBe(false);
+    expect(accountOnFile?.isWritable('cvv')).toBe(true);
   });
 
-  const expect404Error = async (id: number) => {
-    await expect(
-      session.getPaymentProduct(id, paymentContext)
-    ).rejects.toSatisfy((error) => {
-      if (!(error instanceof ResponseError)) return false;
-      const meta = error.metadata as ErrorResponse;
-      return (
-        Array.isArray(meta?.errors) &&
-        meta.errors.some((e) => e.httpStatusCode === 404)
+  it('GetPaymentProduct returns product with valid field structure', async () => {
+    getApiClientSpyMock('getWithContext', cardPaymentProductJson);
+
+    const paymentProduct = await session.getPaymentProduct(
+      cardPaymentProductJson.id,
+      paymentContext
+    );
+    const fields = paymentProduct.getFields();
+    const cardNumberField = paymentProduct.getField('cardNumber');
+    const expiryDateField = paymentProduct.getField('expiryDate');
+    const cvvField = paymentProduct.getField('cvv');
+    const cardholderNameField = paymentProduct.getField('cardholderName');
+
+    expect(fields).toHaveLength(cardPaymentProductJson.fields.length);
+
+    expect(cardNumberField).toBeDefined();
+    expect(cardNumberField?.id).toBe('cardNumber');
+    expect(cardNumberField?.type).toBe('numericstring');
+    expect(cardNumberField?.isRequired()).toBe(true);
+    expect(cardNumberField?.getLabel()).toBe('Card number');
+    expect(cardNumberField?.applyMask('4567350000427977')).toBe(
+      '4567 3500 0042 7977'
+    );
+
+    expect(expiryDateField).toBeDefined();
+    expect(expiryDateField?.id).toBe('expiryDate');
+    expect(expiryDateField?.type).toBe('expirydate');
+    expect(expiryDateField?.isRequired()).toBe(true);
+    expect(expiryDateField?.applyMask('1230')).toBe('12/30');
+
+    expect(cvvField).toBeDefined();
+    expect(cvvField?.id).toBe('cvv');
+    expect(cvvField?.type).toBe('numericstring');
+    expect(cvvField?.isRequired()).toBe(true);
+
+    expect(cardholderNameField).toBeDefined();
+    expect(cardholderNameField?.id).toBe('cardholderName');
+    expect(cardholderNameField?.type).toBe('string');
+    expect(cardholderNameField?.isRequired()).toBe(false);
+
+    expect(
+      paymentProduct.getRequiredFields().map((field) => field.id)
+    ).toStrictEqual(['cardNumber', 'expiryDate', 'cvv']);
+  });
+
+  it('GetPaymentProduct throws ResponseError with error status code for unsupported or missing payment product', async () => {
+    expect.assertions(3);
+
+    try {
+      await session.getPaymentProduct(99999, paymentContext);
+    } catch (error) {
+      const responseError = error as ResponseError;
+      const metadata = responseError.metadata as {
+        errors?: Array<{
+          httpStatusCode?: number;
+        }>;
+      };
+
+      expect(responseError).toBeInstanceOf(ResponseError);
+      expect(
+        metadata.errors?.some(
+          (apiError) => (apiError.httpStatusCode ?? 0) >= 400
+        )
+      ).toBe(true);
+      expect(responseError).toHaveProperty(
+        'message',
+        'Error while trying to fetch the payment product 99999.'
       );
-    });
+    }
+  });
+
+  it('Payment Product unsupported product', async () => {
+    const unsupportedProductIds = SupportedProductsUtil.sdkUnsupportedProducts;
+
+    for (const paymentProductId of unsupportedProductIds) {
+      await expectUnsupportedProductError(paymentProductId);
+    }
+  });
+
+  const expectUnsupportedProductError = async (paymentProductId: number) => {
+    try {
+      await session.getPaymentProduct(paymentProductId, paymentContext);
+      expect.fail('Expected unsupported payment product to throw an error.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ResponseError);
+      expect((error as ResponseError).metadata).toStrictEqual(error404);
+    }
   };
+
+  it('GetPaymentProduct makes new API call for different context', async () => {
+    const spy = getApiClientSpyMock('getWithContext', cardPaymentProductJson);
+
+    await session.getPaymentProduct(cardPaymentProductJson.id, paymentContext);
+    await session.getPaymentProduct(cardPaymentProductJson.id, {
+      ...paymentContext,
+      countryCode: 'BE',
+    });
+
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
 });

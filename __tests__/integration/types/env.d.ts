@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Do not remove or alter the notices in this preamble.
  *
  * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
@@ -26,6 +26,7 @@ export interface ImportMetaEnv {
   readonly VITE_MERCHANT_SECRET_KEY_SURCHARGE_CURRENCY_CONVERSION?: string;
   readonly VITE_PARTIAL_CREDIT_CARD_NUMBER_WITH_SURCHARGE_CURRENCY_CONVERSION?: string;
   readonly VITE_CARD_TOKEN_WITH_SURCHARGE_CURRENCY_CONVERSION?: string;
+  readonly VITE_CARD_TOKEN_WITHOUT_SURCHARGE_CURRENCY_CONVERSION?: string;
   readonly VITE_PRODUCT_ID_WITH_SURCHARGE_CURRENCY_CONVERSION?: string;
   readonly VITE_PARTIAL_CREDIT_CARD_NUMBER_WITHOUT_SURCHARGE_CURRENCY_CONVERSION?: string;
   readonly VITE_PRODUCT_ID_WITHOUT_SURCHARGE_CURRENCY_CONVERSION?: string;

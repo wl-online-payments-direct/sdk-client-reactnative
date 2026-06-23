@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Do not remove or alter the notices in this preamble.
  *
  * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
@@ -10,78 +10,137 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { getConfiguration, getSessionDetails } from '../setup';
-import { createTokenRequest, getEnvVar } from '../utils';
-import {
-  OnlinePaymentSdk,
-  CreditCardTokenRequest,
-  EncryptionError,
-} from '../../../src';
-import { init } from '../../../src';
+import { createTokenRequest, getApiClientSpyMock, getEnvVar } from '../utils';
+import { CreditCardTokenRequest, init, OnlinePaymentSdk } from '../../../src';
+import { publicKeyResponse } from '../../__fixtures__/public-key-response';
 
 const SDK_MERCHANT_ID = getEnvVar('VITE_ONLINEPAYMENTS_SDK_MERCHANT_ID');
 
-describe('createToken', () => {
+describe('CreditCardTokenRequest', () => {
   let session: OnlinePaymentSdk;
   let tokenRequest: CreditCardTokenRequest;
+
   beforeEach(() => {
     session = init(getSessionDetails(), getConfiguration());
     tokenRequest = new CreditCardTokenRequest();
   });
 
-  it('should create valid token with the TokenRequest', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('CreateToken succeeds with valid token request data', async () => {
     tokenRequest.setCardNumber('4567350000427977');
     tokenRequest.setCardholderName('Darwin Núñez');
-    tokenRequest.setExpiryDate('1230');
+    tokenRequest.setExpiryDate('1236');
     tokenRequest.setSecurityCode('123');
     tokenRequest.setProductPaymentId(1);
-    expect(tokenRequest.getValues()).toEqual({
-      cardNumber: '4567350000427977',
-      cardholderName: 'Darwin Núñez',
-      expiryDate: '1230',
-      cvv: '123',
+
+    const encryptedTokenRequest =
+      await session.encryptTokenRequest(tokenRequest);
+
+    const token = await createTokenRequest(SDK_MERCHANT_ID, {
+      encryptedCustomerInput: encryptedTokenRequest.encryptedCustomerInput,
       paymentProductId: 1,
     });
 
-    try {
-      const preparedPaymentRequest =
-        await session.encryptTokenRequest(tokenRequest);
-      expect(preparedPaymentRequest.encryptedCustomerInput).toBeDefined();
+    expect(token).toBeDefined();
+    expect(typeof token).toBe('string');
+    expect(token.length).toBeGreaterThan(0);
+  });
 
-      const result = await createTokenRequest(SDK_MERCHANT_ID, {
-        encryptedCustomerInput: preparedPaymentRequest.encryptedCustomerInput,
+  it('CreateToken fails with invalid token request data', async () => {
+    await expect(
+      createTokenRequest(SDK_MERCHANT_ID, {
+        encryptedCustomerInput: 'invalid-encrypted-customer-input',
         paymentProductId: 1,
-      });
-
-      expect(result).toBeDefined();
-    } catch (error) {
-      console.log(error);
-      expect(error).toBeUndefined();
-    }
+      })
+    ).rejects.toThrow('Can not create token');
   });
 
-  it('response success; should be an instance of `string`', async () => {
-    tokenRequest.setProductPaymentId(1);
-    tokenRequest.setCardNumber('4242424242424242');
-    const response = await session.encryptTokenRequest(tokenRequest);
+  it('EncryptTokenRequest fails when payment product id is missing', async () => {
+    tokenRequest.setCardNumber('42424242424242');
 
-    expect(response).toBeDefined();
+    await expect(session.encryptTokenRequest(tokenRequest)).rejects.toThrow(
+      'Error encrypting credit card token request: the payment product ID is not set.'
+    );
   });
 
-  it('returns encodedClientMetaInfo in the encrypted token response', async () => {
+  it('EncryptTokenRequest returns correct values map', () => {
+    tokenRequest.setCardNumber('4567350000427977');
+    tokenRequest.setCardholderName('Darwin Núñez');
+    tokenRequest.setExpiryDate('1236');
+    tokenRequest.setSecurityCode('123');
     tokenRequest.setProductPaymentId(1);
-    tokenRequest.setCardNumber('4242424242424242');
+
+    expect(tokenRequest.getValues()).toStrictEqual({
+      cardNumber: '4567350000427977',
+      cardholderName: 'Darwin Núñez',
+      expiryDate: '1236',
+      cvv: '123',
+      paymentProductId: 1,
+    });
+  });
+
+  it('EncryptTokenRequest returns encoded client meta information', async () => {
+    getApiClientSpyMock('get', publicKeyResponse);
+
+    tokenRequest.setProductPaymentId(1);
+    tokenRequest.setCardNumber('42424242424242');
+
     const response = await session.encryptTokenRequest(tokenRequest);
 
     expect(response.encodedClientMetaInfo).toBeDefined();
+    expect(typeof response.encodedClientMetaInfo).toBe('string');
+    expect(response.encodedClientMetaInfo?.length).toBeGreaterThan(0);
   });
 
-  it('should fail if paymentProductId not provided', async () => {
-    tokenRequest.setCardNumber('4242424242424242');
+  it('EncryptTokenRequest returns encrypted token as string', async () => {
+    getApiClientSpyMock('get', publicKeyResponse);
 
-    await expect(session.encryptTokenRequest(tokenRequest)).rejects.toThrow(
-      EncryptionError
-    );
+    tokenRequest.setProductPaymentId(1);
+    tokenRequest.setCardNumber('42424242424242');
+
+    const response = await session.encryptTokenRequest(tokenRequest);
+
+    expect(response.encryptedCustomerInput).toBeDefined();
+    expect(typeof response.encryptedCustomerInput).toBe('string');
+    expect(response.encryptedCustomerInput.split('.')).toHaveLength(5);
+  });
+
+  it('EncryptTokenRequest with invalid data still produces encrypted output', async () => {
+    getApiClientSpyMock('get', publicKeyResponse);
+
+    tokenRequest.setCardNumber('not-a-valid-card-number');
+    tokenRequest.setCardholderName('');
+    tokenRequest.setExpiryDate('invalid-expiry-date');
+    tokenRequest.setSecurityCode('x');
+    tokenRequest.setProductPaymentId(1);
+
+    const response = await session.encryptTokenRequest(tokenRequest);
+
+    expect(response.encryptedCustomerInput).toBeDefined();
+    expect(typeof response.encryptedCustomerInput).toBe('string');
+    expect(response.encryptedCustomerInput.split('.')).toHaveLength(5);
+  });
+
+  it('EncryptTokenRequest with valid data returns encrypted output', async () => {
+    getApiClientSpyMock('get', publicKeyResponse);
+
+    tokenRequest.setCardNumber('4567350000427977');
+    tokenRequest.setCardholderName('Darwin Núñez');
+    tokenRequest.setExpiryDate('1236');
+    tokenRequest.setSecurityCode('123');
+    tokenRequest.setProductPaymentId(1);
+
+    const response = await session.encryptTokenRequest(tokenRequest);
+
+    expect(response.encryptedCustomerInput).toBeDefined();
+    expect(typeof response.encryptedCustomerInput).toBe('string');
+    expect(response.encryptedCustomerInput.split('.')).toHaveLength(5);
+    expect(response.encodedClientMetaInfo).toBeDefined();
   });
 });

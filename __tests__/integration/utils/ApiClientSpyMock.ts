@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Do not remove or alter the notices in this preamble.
  *
  * This software is owned by Worldline and may not be be altered, copied, reproduced, republished, uploaded, posted, transmitted or distributed in any way, without the prior written consent of Worldline.
@@ -15,16 +15,18 @@ import type { SdkResponse } from '../../../src';
 import type { ApiClient } from '../../../src/infrastructure/interfaces/ApiClient';
 import { DefaultApiClient } from '../../../src/infrastructure/DefaultApiClient';
 
+type ApiClientSpyMethod = 'get' | 'post';
+
 /**
- * Returns a SpyInstance for `ApiClient.get` or `ApiClient.post`
+ * Returns a spy for `ApiClient.get` or `ApiClient.post`.
  */
-export function getApiClientSpyMock<Method extends keyof ApiClient, Data>(
-  method: Method,
+export function getApiClientSpyMock<Data>(
+  method: ApiClientSpyMethod,
   data: Data
 ) {
   const stub: SdkResponse<Data> = { success: true, status: 200, data };
 
   return vi
     .spyOn(DefaultApiClient.prototype as ApiClient, method)
-    .mockImplementation(async () => stub);
+    .mockResolvedValue(stub as never);
 }
