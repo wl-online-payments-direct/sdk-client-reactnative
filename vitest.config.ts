@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 const reactNativeMock = path.resolve(
-  __dirname,
+  import.meta.dirname,
   './__tests__/__mocks__/react-native.ts'
 );
 
@@ -18,7 +18,7 @@ export default defineConfig({
       {
         resolve: {
           alias: {
-            '@': path.resolve(__dirname, './src'),
+            '@': path.resolve(import.meta.dirname, './src'),
             'react-native': reactNativeMock,
           },
         },
@@ -26,12 +26,13 @@ export default defineConfig({
           name: 'unit',
           environment: 'node',
           include: ['__tests__/unit/**/*.test.ts'],
+          restoreMocks: true,
         },
       },
       {
         resolve: {
           alias: {
-            '@': path.resolve(__dirname, './src'),
+            '@': path.resolve(import.meta.dirname, './src'),
             'react-native': reactNativeMock,
           },
         },
@@ -41,6 +42,7 @@ export default defineConfig({
           include: ['__tests__/integration/**/*.test.ts'],
           setupFiles: ['./__tests__/integration/setup.ts'],
           testTimeout: 30000,
+          restoreMocks: true,
         },
       },
     ],

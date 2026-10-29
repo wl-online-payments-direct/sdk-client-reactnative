@@ -57,8 +57,8 @@ export class DefaultServiceFactory implements ServiceFactory {
     this.cacheManager = new CacheManager();
 
     this.applePay = props.applePay ?? {
-      async isApplePayAvailable(): Promise<boolean> {
-        return false;
+      isApplePayAvailable(): Promise<boolean> {
+        return Promise.resolve(false);
       },
     };
 
