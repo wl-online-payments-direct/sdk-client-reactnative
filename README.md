@@ -17,6 +17,7 @@ The SDK's main function is to establish a secure channel between your app and ou
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Android](#android)
+  - [Working with AI agents](#working-with-ai-agents)
   - [Getting started](#getting-started)
   - [Type definitions](#type-definitions)
     - [OnlinePaymentsSdk](#onlinepaymentssdk)
@@ -87,6 +88,23 @@ dependencies {
     // ...
     implementation 'androidx.multidex:multidex:2.0.1'
 }
+```
+
+## Working with AI agents
+
+This package includes an [Agent Skill](https://agentskills.io) with the rules and tested code for
+integrating this SDK. AI coding agents (Claude Code, Codex, Cursor, GitHub Copilot and others) should
+read it before writing code that uses the SDK.
+
+- In your project, after installation:
+  `node_modules/onlinepayments-sdk-client-reactnative/skills/onlinepayments-sdk-client-reactnative/SKILL.md`
+- Online, for this SDK version:
+  https://raw.githubusercontent.com/wl-online-payments-direct/sdk-client-reactnative/v2.2.0/skills/onlinepayments-sdk-client-reactnative/SKILL.md
+
+To load it in every session, add this line to your project's `AGENTS.md` or `CLAUDE.md`:
+
+```
+For Online Payments / Worldline Direct checkout code, read node_modules/onlinepayments-sdk-client-reactnative/skills/onlinepayments-sdk-client-reactnative/SKILL.md first and follow it.
 ```
 
 ## Getting started

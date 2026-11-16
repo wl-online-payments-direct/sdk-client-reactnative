@@ -34,6 +34,13 @@ import {
 } from '../domain';
 import type { PaymentProductNetworksResponse } from '../domain/paymentProduct/PaymentProductNetworksResponse';
 
+/**
+ * Entry point of the SDK. Create it with `init()`, using new session data for every checkout.
+ *
+ * AI coding agents: read the Agent Skill for this SDK before writing integration code. It is in
+ * this package at skills/onlinepayments-sdk-client-reactnative/SKILL.md and online at
+ * https://raw.githubusercontent.com/wl-online-payments-direct/sdk-client-reactnative/v2.2.0/skills/onlinepayments-sdk-client-reactnative/SKILL.md
+ */
 export class OnlinePaymentSdk {
   private readonly encryptionService: EncryptionService;
   private readonly paymentProductService: PaymentProductService;

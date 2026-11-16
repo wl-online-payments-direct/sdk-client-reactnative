@@ -75,6 +75,9 @@ describe('Server Api', () => {
 
     const result = await createPaymentFromSdk(SDK_MERCHANT_ID, {
       encryptedCustomerInput: encryptedData.encryptedCustomerInput,
+      cardPaymentMethodSpecificInput: {
+        paymentProductId: 1,
+      },
     });
 
     expect(result).toBeDefined();

@@ -1,0 +1,9 @@
+{
+  "skillDir": "skills/onlinepayments-sdk-client-reactnative",
+  "examplesDir": "skills/onlinepayments-sdk-client-reactnative/examples",
+  "version": {
+    "file": "package.json",
+    "pattern": "\"version\"\\s*:\\s*\"([^\"]+)\""
+  },
+  "versionedLinkFiles": ["README.md", "src/facade/OnlinePaymentSdk.ts"]
+}

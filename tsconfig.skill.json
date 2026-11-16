@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "onlinepayments-sdk-client-reactnative": ["./src/index.ts"]
+    }
+  },
+  "include": ["skills/onlinepayments-sdk-client-reactnative/examples"]
+}

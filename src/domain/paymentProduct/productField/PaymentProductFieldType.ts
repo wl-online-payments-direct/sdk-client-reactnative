@@ -11,9 +11,4 @@
  */
 
 export type PaymentProductFieldType =
-  | 'numericstring'
-  | 'date'
-  | 'string'
-  | 'expirydate'
-  | 'integer'
-  | 'boolean';
+  'numericstring' | 'date' | 'string' | 'expirydate' | 'integer' | 'boolean';

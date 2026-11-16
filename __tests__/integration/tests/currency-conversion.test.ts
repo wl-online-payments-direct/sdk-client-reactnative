@@ -82,6 +82,9 @@ describe.skip('GetCurrencyConversionQuote', () => {
     expect(result.proposal?.baseAmount).toStrictEqual(
       withCurrencyConversion.proposal.baseAmount
     );
+    // Create Payment needs this id in cardPaymentMethodSpecificInput.currencyConversion.dccSessionId.
+    expect(result.dccSessionId).toEqual(expect.any(String));
+    expect(result.dccSessionId).not.toBe('');
   });
 
   it('GetCurrencyConversionQuote Returns proposal with card without payment product id', async () => {

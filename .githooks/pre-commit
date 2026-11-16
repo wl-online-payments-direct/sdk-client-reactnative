@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+# Fails the commit when an Agent Skill example no longer type-checks or a skill code block is out of date.
+npx tsc --noEmit -p tsconfig.skill.json && node scripts/skill-sync.mjs check
